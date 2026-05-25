@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass, field
 
 from intelligence_core.retriever import Retriever, RetrievalResult
+from intelligence_core.llm import get_llm_provider
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,12 @@ class OrchestratedResult:
 
 class MentorOrchestrator:
     """
-    Riceve una query + contesto sessione.
-    Interroga i retriever in base allo step corrente e fonde le risposte.
-    Priorità risposta: mentor > doc > code per onboarding.
+    Receives a query + session context.
+    Queries retrievers according to the current onboarding step,
+    merges results cross-domain, and generates a contextual answer
+    using the configured LLM provider (Ollama / OpenAI / vLLM / Claude).
+
+    Domain priority for reranking: mentor > doc > code
     """
 
     def __init__(
@@ -41,39 +45,38 @@ class MentorOrchestrator:
         self,
         question: str,
         session,
-        sources: list[str] = None,
+        sources: list[str] | None = None,
         top_k: int = 5,
     ) -> OrchestratedResult:
-        """Fonde risultati da più retriever e genera risposta contestuale."""
+        """Merge results from multiple retrievers and generate a contextual answer."""
         from MentorIntelligence.path_builder import get_current_step, get_next_step, adapt_path
 
         current_step = get_current_step(session)
-        next_step = get_next_step(session)
+        next_step    = get_next_step(session)
 
-        # Determina le sorgenti da interrogare
+        # Decide which domains to query based on the current onboarding step
         if sources is None:
             if current_step:
                 sources = current_step.get("sources", ["doc", "mentor"])
             else:
                 sources = ["doc", "mentor", "code"]
 
-        # Adatta il percorso in base alla domanda
+        # Adapt path based on question content
         adapt_path(session, question)
 
-        # Retrieval da tutte le sorgenti selezionate
+        # Retrieval across all selected domains
         results_by_domain: dict[str, list[RetrievalResult]] = {}
         for domain in sources:
             retriever = self.retrievers.get(domain)
             if retriever is None:
                 continue
             try:
-                results = retriever.search(question, top_k=top_k)
-                results_by_domain[domain] = results
-            except Exception as e:
-                logger.warning("Retriever '%s' fallito: %s", domain, e)
+                results_by_domain[domain] = retriever.search(question, top_k=top_k)
+            except Exception as exc:
+                logger.warning("Retriever '%s' failed: %s", domain, exc)
                 results_by_domain[domain] = []
 
-        # Reranking unificato cross-domain con priorità mentor > doc > code
+        # Unified cross-domain reranking: mentor > doc > code
         domain_priority = {"mentor": 0.15, "doc": 0.05, "code": 0.0}
         all_results: list[tuple[float, str, RetrievalResult]] = []
         for domain, res_list in results_by_domain.items():
@@ -84,22 +87,30 @@ class MentorOrchestrator:
         all_results.sort(key=lambda x: x[0], reverse=True)
         top_results = all_results[:top_k]
 
-        # Costruisce contesto per LLM
-        context_parts = [r.chunk["text"] for _, _, r in top_results[:3]]
-        context = "\n\n---\n\n".join(context_parts)
+        # Build context string for LLM
+        context_parts = []
+        for _, domain, r in top_results[:4]:
+            src = r.chunk.get("source", domain)
+            context_parts.append(f"[{src}]\n{r.chunk['text']}")
+        context    = "\n\n---\n\n".join(context_parts)
         confidence = top_results[0][0] if top_results else 0.0
 
-        # Risposta contestuale nel percorso
-        step_info = ""
+        # Step annotation (shown to the LLM as context, not appended to output)
+        step_context_note = ""
         if current_step:
-            step_info = (
-                f"\n\n[Sei al passo '{current_step['title']}' del tuo percorso. "
-                f"Checkpoint: {current_step.get('checkpoint', '')}]"
+            step_context_note = (
+                f"The user is currently on onboarding step '{current_step['title']}'. "
+                f"Checkpoint goal: {current_step.get('checkpoint', 'N/A')}."
             )
 
-        answer = _generate_answer(context, question, session, step_info)
+        answer = _generate_answer(
+            context=context,
+            question=question,
+            session=session,
+            step_context_note=step_context_note,
+        )
 
-        # Prossima domanda suggerita
+        # Suggested next question from the following step
         suggested_next = None
         if next_step and next_step.get("suggested_queries"):
             suggested_next = next_step["suggested_queries"][0]
@@ -119,30 +130,38 @@ class MentorOrchestrator:
         )
 
 
-def _generate_answer(context: str, question: str, session, step_info: str) -> str:
-    """Chiama il LLM locale per generare la risposta contestualizzata."""
-    import httpx
-    from intelligence_core.config import settings
-    try:
-        prompt = (
-            f"Stai aiutando {session.user_name} nel suo onboarding come {session.profile}.\n"
-            f"Contesto recuperato:\n{context}\n\n"
-            f"Domanda: {question}\n\n"
-            "Rispondi in modo chiaro e pratico. "
-            "Cita le fonti pertinenti. "
-            "Sii conciso ma completo."
-            f"{step_info}"
-        )
-        resp = httpx.post(
-            f"{settings.ollama_base_url}/api/generate",
-            json={"model": settings.ollama_model, "prompt": prompt, "stream": False},
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip() + step_info
-    except Exception as e:
-        logger.warning("LLM non disponibile: %s", e)
+def _generate_answer(
+    context: str,
+    question: str,
+    session,
+    step_context_note: str = "",
+) -> str:
+    """
+    Generate a mentor answer using the configured LLM provider.
+    Reads LLM_BACKEND from .env — supports Ollama, OpenAI, vLLM, Claude.
+    """
+    llm = get_llm_provider()
+
+    system_prompt = (
+        f"You are an expert onboarding mentor helping {session.user_name}, "
+        f"a new team member with the profile '{session.profile}'.\n"
+        "Answer their question using ONLY the provided context. "
+        "Be clear, practical, and cite relevant source files when useful. "
+        "Be concise but complete. Avoid unnecessary preamble."
+    )
+    if step_context_note:
+        system_prompt += f"\n\nOnboarding context: {step_context_note}"
+
+    if not context.strip():
         return (
-            f"[LLM non disponibile — contenuto rilevante trovato]\n\n"
-            f"{context[:1000]}{step_info}"
+            "No relevant documents were found for this question. "
+            "Try rephrasing, or make sure the codebase and documents have been indexed."
+        )
+
+    try:
+        return llm.generate(question, context, system_prompt=system_prompt)
+    except Exception as exc:
+        logger.warning("LLM generation failed (%s): %s", llm.backend_name, exc)
+        return (
+            f"[LLM unavailable — most relevant context below]\n\n{context[:1000]}"
         )
