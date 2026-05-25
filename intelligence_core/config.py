@@ -1,33 +1,53 @@
-"""Configurazione centralizzata via variabili d'ambiente."""
+"""Centralised configuration via environment variables / .env file."""
 
-from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Ollama
-    ollama_base_url:    str   = "http://localhost:11434"
-    ollama_model:       str   = "qwen2.5-coder:7b"
-    ollama_embed_model: str   = "nomic-embed-text"
 
-    # Escalation
-    anthropic_api_key:     str   = ""
+    # ── Ollama (local LLM + embeddings) ────────────────────────────────────────
+    ollama_base_url:    str = "http://localhost:11434"
+    ollama_model:       str = "qwen2.5-coder:7b"
+    ollama_embed_model: str = "nomic-embed-text"
+
+    # ── LLM generation backend ─────────────────────────────────────────────────
+    # Choices: ollama | openai | vllm | claude
+    # "vllm" uses the same OpenAI-compat client as "openai" — just set
+    # OPENAI_BASE_URL to your vLLM server (e.g. http://localhost:8000/v1)
+    llm_backend: str = "ollama"
+
+    # OpenAI / vLLM / Groq / Mistral / any OpenAI-compatible server
+    openai_api_key:  str = ""
+    openai_model:    str = "gpt-4o"
+    openai_base_url: str = "https://api.openai.com/v1"
+
+    # Anthropic Claude
+    anthropic_api_key: str = ""
+    claude_model:      str = "claude-opus-4-5"
+
+    # ── Escalation policy ──────────────────────────────────────────────────────
+    # When confidence < threshold, escalate to Claude API (if key is set)
     escalation_threshold:  float = 0.70
     escalation_max_tokens: int   = 4096
 
-    # Vector Store
+    # ── Embedding backend ──────────────────────────────────────────────────────
+    # Choices: ollama | st (sentence-transformers) | claude (voyage)
+    embed_backend:    str = "ollama"
+    embed_batch_size: int = 32
+
+    # ── Vector store ───────────────────────────────────────────────────────────
     vector_store:       str = "chromadb"
     chroma_persist_dir: str = "./.chroma"
     pgvector_dsn:       str = ""
 
-    # Server
-    api_port:  int = 8080
+    # ── Server ports (one per module, avoids conflicts when running together) ──
+    ci_port: int = 8080   # CodeIntelligence
+    di_port: int = 8081   # DocIntelligence
+    mi_port: int = 8082   # MentorIntelligence
+
+    # ── Shared server settings ─────────────────────────────────────────────────
     api_host:  str = "0.0.0.0"
     log_level: str = "INFO"
-
-    # Embedding
-    embed_backend:    str = "ollama"
-    embed_batch_size: int = 32
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

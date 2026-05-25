@@ -203,7 +203,7 @@ def main():
     uvicorn.run(
         "MentorIntelligence.mentor_server:app",
         host=settings.api_host,
-        port=settings.api_port,
+        port=settings.mi_port,
         log_level=settings.log_level.lower(),
     )
 

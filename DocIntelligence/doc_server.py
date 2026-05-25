@@ -23,7 +23,7 @@ def main():
     uvicorn.run(
         "DocIntelligence.doc_server:app",
         host=settings.api_host,
-        port=settings.api_port,
+        port=settings.di_port,
         log_level=settings.log_level.lower(),
     )
 

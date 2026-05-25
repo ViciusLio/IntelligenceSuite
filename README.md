@@ -47,16 +47,22 @@ REST API you can query from any client.
 ## Installation
 
 ```bash
-# Minimal (REST API + Ollama embeddings)
+# Minimal — Ollama for both embeddings and generation (fully local)
 pip install intelligence-suite
 
 # With document parsers
 pip install "intelligence-suite[pdf,docx,xlsx]"
 
+# With OpenAI / vLLM / Groq / Mistral generation
+pip install "intelligence-suite[openai]"
+
+# With Claude generation + Voyage embeddings
+pip install "intelligence-suite[claude]"
+
 # With OCR support (requires tesseract on the system)
 pip install "intelligence-suite[pdf,ocr]"
 
-# Full local stack
+# Everything
 pip install "intelligence-suite[all]"
 
 # Development
@@ -243,34 +249,64 @@ with a unified schema:
 
 ## Integration examples
 
-### Ollama (local, zero cost)
+### Ollama — fully local, zero cost
 
 ```python
-from intelligence_core.embedder import get_embedder
-from intelligence_core.store import get_store
+# .env: LLM_BACKEND=ollama  OLLAMA_MODEL=qwen2.5-coder:7b
 from intelligence_core.retriever import Retriever
+from intelligence_core.llm import get_llm_provider
 
-# Uses EMBED_BACKEND=ollama and OLLAMA_EMBED_MODEL from .env (or defaults)
-retriever = Retriever(embedder=get_embedder(), store=get_store())
+retriever = Retriever.load_default()
+llm       = get_llm_provider()          # reads LLM_BACKEND from .env
 
-results = retriever.search("How is the database connection pooled?", domain="code", top_k=5)
-for hit in results:
-    print(f"[{hit.chunk['source']}] score={hit.score:.2f}  {hit.chunk['text'][:200]}")
+hits    = retriever.search("How is the database connection pooled?", domain="code", top_k=5)
+context = "\n\n".join(h.chunk["text"] for h in hits)
+answer  = llm.generate("How is the database connection pooled?", context)
+
+print(answer)
+for h in hits:
+    print(f"  [{h.chunk['source']}] score={h.score:.2f}")
 ```
 
-### Claude API (cloud escalation for hard queries)
+### OpenAI / Groq / Mistral / any OpenAI-compatible API
 
 ```python
-import os
-from intelligence_core.embedder import ClaudeEmbedder
-from intelligence_core.store import get_store
+# .env: LLM_BACKEND=openai  OPENAI_API_KEY=sk-...  OPENAI_MODEL=gpt-4o
+from intelligence_core.llm import get_llm_provider
 from intelligence_core.retriever import Retriever
 
-# Set ANTHROPIC_API_KEY in .env — escalation kicks in automatically
-os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."   # or load from .env
-retriever = Retriever(embedder=ClaudeEmbedder(domain="code"), store=get_store())
+retriever = Retriever.load_default()
+llm       = get_llm_provider()          # OpenAICompatProvider
+# For Groq:      set OPENAI_BASE_URL=https://api.groq.com/openai/v1
+# For Mistral:   set OPENAI_BASE_URL=https://api.mistral.ai/v1
 
-results = retriever.search("Explain the entire payment flow", domain="code", top_k=8)
+hits   = retriever.search("Explain the payment flow", domain="code", top_k=8)
+answer = llm.generate("Explain the payment flow", "\n\n".join(h.chunk["text"] for h in hits))
+```
+
+### vLLM — local GPU server
+
+```python
+# .env: LLM_BACKEND=vllm
+#        OPENAI_BASE_URL=http://localhost:8000/v1
+#        OPENAI_MODEL=mistralai/Mistral-7B-Instruct-v0.2
+from intelligence_core.llm import get_llm_provider
+
+llm = get_llm_provider("vllm")   # OpenAI-compat client → your vLLM server
+```
+
+### Claude API
+
+```python
+# .env: LLM_BACKEND=claude  ANTHROPIC_API_KEY=sk-ant-...  CLAUDE_MODEL=claude-opus-4-5
+from intelligence_core.llm import get_llm_provider
+from intelligence_core.retriever import Retriever
+
+retriever = Retriever.load_default()
+llm       = get_llm_provider("claude")
+
+hits   = retriever.search("Explain the entire auth flow", domain="code", top_k=8)
+answer = llm.generate("Explain the entire auth flow", "\n\n".join(h.chunk["text"] for h in hits))
 ```
 
 ### LangChain / LlamaIndex
@@ -298,13 +334,36 @@ docs = [
 
 ---
 
+## LLM backends (generation)
+
+IntelligenceSuite uses a provider-agnostic `LLMProvider` protocol for answer generation.
+Switch backend with a single env var — no code changes required.
+
+| Backend | `LLM_BACKEND` | Extra | Notes |
+|---|---|---|---|
+| **Ollama** | `ollama` | *(none)* | Default — fully local, no API key, no GPU required |
+| **OpenAI** | `openai` | `[openai]` | GPT-4o, GPT-4o-mini, o1, … |
+| **vLLM** | `vllm` | `[openai]` | Local GPU server, OpenAI-compatible; set `OPENAI_BASE_URL` |
+| **Claude** | `claude` | `[claude]` | Anthropic claude-opus-4-5, claude-sonnet-4-5, … |
+| **Groq** | `openai` | `[openai]` | Fast inference; set `OPENAI_BASE_URL=https://api.groq.com/openai/v1` |
+| **Mistral AI** | `openai` | `[openai]` | Set `OPENAI_BASE_URL=https://api.mistral.ai/v1` |
+| **LM Studio** | `vllm` | `[openai]` | Local; set `OPENAI_BASE_URL=http://localhost:1234/v1` |
+
+> Any OpenAI-compatible server works with `LLM_BACKEND=openai` or `vllm` by pointing
+> `OPENAI_BASE_URL` at the correct endpoint.
+
+### Escalation
+
+When retrieval confidence < `ESCALATION_THRESHOLD` and `ANTHROPIC_API_KEY` is set,
+the system automatically escalates to Claude — regardless of the primary `LLM_BACKEND`.
+
 ## Embedding backends
 
-| Backend | Config | Use case |
-|---|---|---|
-| **Ollama** | `EMBEDDER=ollama` | Default — fully on-premise, no GPU required |
-| **SentenceTransformer** | `EMBEDDER=st` | CPU-only alternative, fully offline |
-| **Claude / Voyage** | `EMBEDDER=claude` | Cloud escalation for hard queries only |
+| Backend | `EMBED_BACKEND` | Extra | Notes |
+|---|---|---|---|
+| **Ollama** | `ollama` | *(none)* | Default — fully local |
+| **SentenceTransformer** | `st` | `[st]` | CPU-only, fully offline |
+| **Claude / Voyage** | `claude` | `[claude]` | Cloud embeddings via Voyage AI |
 
 ### Vector store
 
@@ -334,7 +393,20 @@ docs = [
 Copy `.env.example` to `.env` and edit:
 
 ```env
-# Embedding backend
+# LLM generation (ollama | openai | vllm | claude)
+LLM_BACKEND=ollama
+OLLAMA_MODEL=qwen2.5-coder:7b
+
+# OpenAI-compatible (OpenAI, vLLM, Groq, Mistral, LM Studio…)
+# OPENAI_API_KEY=sk-...
+# OPENAI_MODEL=gpt-4o
+# OPENAI_BASE_URL=https://api.openai.com/v1   # vLLM: http://localhost:8000/v1
+
+# Claude
+# ANTHROPIC_API_KEY=sk-ant-...
+# CLAUDE_MODEL=claude-opus-4-5
+
+# Embeddings (ollama | st | claude)
 EMBED_BACKEND=ollama
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_EMBED_MODEL=nomic-embed-text
@@ -343,13 +415,13 @@ OLLAMA_EMBED_MODEL=nomic-embed-text
 VECTOR_STORE=chromadb
 CHROMA_PERSIST_DIR=./.chroma
 
-# Escalation (optional — works without)
+# Escalation: fallback to Claude when confidence < threshold
 ESCALATION_THRESHOLD=0.70
-ANTHROPIC_API_KEY=
 
-# Server
-API_PORT=8080
-API_HOST=0.0.0.0
+# Server ports — all three can run simultaneously
+CI_PORT=8080   # CodeIntelligence
+DI_PORT=8081   # DocIntelligence
+MI_PORT=8082   # MentorIntelligence
 ```
 
 All variables are accepted as plain environment variables too — no `.env` file required in CI/CD.

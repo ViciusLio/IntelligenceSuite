@@ -20,7 +20,7 @@ def main():
     uvicorn.run(
         "CodeIntelligence.rag_server:app",
         host=settings.api_host,
-        port=settings.api_port,
+        port=settings.ci_port,
         log_level=settings.log_level.lower(),
     )
 
