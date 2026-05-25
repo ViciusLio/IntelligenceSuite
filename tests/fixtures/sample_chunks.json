@@ -1,0 +1,42 @@
+[
+  {
+    "id": "code::function::auth.validate_token",
+    "domain": "code",
+    "type": "function",
+    "text": "Function: validate_token (in app/auth.py)\nSignature: def validate_token(token: str) -> dict\nDocstring: Validates a JWT Bearer Token and returns the decoded payload.\nBody: decoded = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])\n      return decoded",
+    "source": "app/auth.py",
+    "language": "python",
+    "metadata": {"line_start": 45, "line_end": 52, "class": null, "is_async": false},
+    "checksum": ""
+  },
+  {
+    "id": "code::class::escalation.EscalationPolicy",
+    "domain": "code",
+    "type": "class",
+    "text": "Class: EscalationPolicy (in intelligence_core/escalation.py)\nDocstring: Decides whether to respond with local model or escalate to Claude API.\nMethods: should_escalate, __init__",
+    "source": "intelligence_core/escalation.py",
+    "language": "python",
+    "metadata": {"line_start": 10, "line_end": 50, "base_classes": []},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::APIRef.Autenticazione",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Autenticazione (in api_reference_v2.pdf)\nPath: API Reference > Autenticazione\n---\nAutenticazione via JWT Bearer Token. Header: Authorization: Bearer TOKEN. POST /api/v1/auth/token con client_id e client_secret. Token scade dopo 1 ora.",
+    "source": "api_reference_v2.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 2, "page_end": 3, "heading_path": ["API Reference", "Autenticazione"], "word_count": 38},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::DeployProc.Rollback",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Rollback (in deploy_procedure_v3.pdf)\nPath: Procedura Deploy > Rollback\n---\nRollback immediato (entro 30 minuti): kubectl rollout undo deployment/intelligence-suite -n production. Rollback manuale: kubectl set image. Aprire incident PagerDuty. Post-mortem entro 48 ore.",
+    "source": "deploy_procedure_v3.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 4, "page_end": 4, "heading_path": ["Procedura Deploy", "Rollback"], "word_count": 42},
+    "checksum": ""
+  }
+]

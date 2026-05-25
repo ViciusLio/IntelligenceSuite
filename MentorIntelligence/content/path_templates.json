@@ -1,0 +1,174 @@
+{
+  "developer": {
+    "description": "Percorso per developer che entrano su un progetto esistente",
+    "steps": [
+      {
+        "id": "dev_01",
+        "title": "Architettura generale",
+        "description": "Capire la struttura del progetto e i componenti principali",
+        "sources": ["doc", "code"],
+        "suggested_queries": [
+          "Qual è l'architettura del progetto?",
+          "Quali sono i componenti principali?"
+        ],
+        "checkpoint": "Sai descrivere i 3 componenti principali e le loro responsabilità"
+      },
+      {
+        "id": "dev_02",
+        "title": "Setup ambiente di sviluppo",
+        "description": "Configurare l'ambiente locale e installare le dipendenze",
+        "sources": ["doc"],
+        "suggested_queries": [
+          "Come si configura l'ambiente di sviluppo?",
+          "Quali dipendenze servono?"
+        ],
+        "checkpoint": "Hai il progetto che gira in locale"
+      },
+      {
+        "id": "dev_03",
+        "title": "Autenticazione e sicurezza",
+        "description": "Capire il sistema di autenticazione e le politiche di sicurezza",
+        "sources": ["code", "doc"],
+        "suggested_queries": [
+          "Come funziona l'autenticazione?",
+          "Dove viene validato il token?"
+        ],
+        "checkpoint": "Sai dove viene gestita l'auth e come testarla"
+      },
+      {
+        "id": "dev_04",
+        "title": "Prassi di sviluppo",
+        "description": "Conoscere le convenzioni del team: git, review, naming",
+        "sources": ["mentor"],
+        "suggested_queries": [
+          "Naming convention branch",
+          "Come si fa una code review?"
+        ],
+        "checkpoint": "Conosci le regole del team su git, review, deploy"
+      },
+      {
+        "id": "dev_05",
+        "title": "Deploy e operazioni",
+        "description": "Capire la procedura di deploy e rollback",
+        "sources": ["doc"],
+        "suggested_queries": [
+          "Come si fa il deploy?",
+          "Cosa fare se qualcosa va storto?"
+        ],
+        "checkpoint": "Sai leggere la procedura di deploy e rollback"
+      }
+    ]
+  },
+  "non_developer": {
+    "description": "Percorso per ruoli non tecnici (PM, HR, sales, operations)",
+    "steps": [
+      {
+        "id": "nd_01",
+        "title": "Cos'è il progetto e a cosa serve",
+        "description": "Capire il prodotto e il suo valore di business",
+        "sources": ["doc"],
+        "suggested_queries": [
+          "Cosa fa IntelligenceSuite?",
+          "A chi è rivolto?"
+        ],
+        "checkpoint": "Sai spiegare il prodotto in 3 frasi a un non-tecnico"
+      },
+      {
+        "id": "nd_02",
+        "title": "Processi e prassi aziendali",
+        "description": "Conoscere i processi e le prassi del team",
+        "sources": ["mentor", "doc"],
+        "suggested_queries": [
+          "Quali sono le prassi del team?",
+          "Come si prendono le decisioni?"
+        ],
+        "checkpoint": "Conosci i processi principali del team"
+      },
+      {
+        "id": "nd_03",
+        "title": "Come interagire con il team tecnico",
+        "description": "Sapere come comunicare e collaborare con i developer",
+        "sources": ["mentor"],
+        "suggested_queries": [
+          "Come si apre una richiesta?",
+          "Chi contattare per cosa?"
+        ],
+        "checkpoint": "Sai a chi rivolgerti per i casi principali"
+      }
+    ]
+  },
+  "mixed": {
+    "description": "Percorso ibrido: tecnico con responsabilità trasversali",
+    "steps": [
+      {
+        "id": "dev_01",
+        "title": "Architettura generale",
+        "description": "Capire la struttura del progetto",
+        "sources": ["doc", "code"],
+        "suggested_queries": ["Qual è l'architettura del progetto?"],
+        "checkpoint": "Sai descrivere i componenti principali"
+      },
+      {
+        "id": "nd_02",
+        "title": "Processi e prassi aziendali",
+        "description": "Conoscere i processi del team",
+        "sources": ["mentor", "doc"],
+        "suggested_queries": ["Quali sono le prassi del team?"],
+        "checkpoint": "Conosci i processi principali"
+      },
+      {
+        "id": "dev_03",
+        "title": "Autenticazione e sicurezza",
+        "description": "Capire il sistema di autenticazione",
+        "sources": ["code", "doc"],
+        "suggested_queries": ["Come funziona l'autenticazione?"],
+        "checkpoint": "Sai dove viene gestita l'auth"
+      },
+      {
+        "id": "dev_04",
+        "title": "Prassi di sviluppo",
+        "description": "Convenzioni del team tecnico",
+        "sources": ["mentor"],
+        "suggested_queries": ["Naming convention branch", "Code review process"],
+        "checkpoint": "Conosci le regole del team"
+      },
+      {
+        "id": "nd_03",
+        "title": "Come interagire con il team tecnico",
+        "description": "Comunicazione e collaborazione cross-team",
+        "sources": ["mentor"],
+        "suggested_queries": ["Come si apre una richiesta?"],
+        "checkpoint": "Sai a chi rivolgerti"
+      },
+      {
+        "id": "dev_05",
+        "title": "Deploy e operazioni",
+        "description": "Capire deploy e rollback",
+        "sources": ["doc"],
+        "suggested_queries": ["Come si fa il deploy?"],
+        "checkpoint": "Sai leggere la procedura di deploy"
+      }
+    ]
+  },
+  "unknown": {
+    "description": "Percorso generico per utenti con profilo non ancora rilevato",
+    "steps": [
+      {
+        "id": "nd_01",
+        "title": "Cos'è il progetto e a cosa serve",
+        "description": "Panoramica generale del prodotto",
+        "sources": ["doc"],
+        "suggested_queries": ["Cosa fa questo progetto?"],
+        "checkpoint": "Hai capito lo scopo del progetto"
+      },
+      {
+        "id": "nd_02",
+        "title": "Processi e prassi aziendali",
+        "description": "Processi del team",
+        "sources": ["mentor", "doc"],
+        "suggested_queries": ["Quali sono le prassi del team?"],
+        "checkpoint": "Conosci i processi principali"
+      }
+    ]
+  }
+}
