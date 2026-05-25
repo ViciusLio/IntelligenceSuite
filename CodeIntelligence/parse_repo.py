@@ -10,13 +10,24 @@ from CodeIntelligence.parsers import get_parser
 from intelligence_core.chunk import chunk_to_jsonl, validate_chunk
 
 
+_EXCLUDED_DIRS = {
+    "__pycache__", "build", "dist", "node_modules",
+    "venv", ".venv", "env", ".env", ".tox",
+    "site-packages", ".eggs",
+}
+
+
 def parse_repo(repo_path: Path, output: Path = None) -> list[dict]:
     chunks = []
     skipped = 0
     for file in sorted(repo_path.rglob("*")):
         if not file.is_file():
             continue
-        if any(part.startswith(".") or part == "__pycache__" for part in file.parts):
+        parts = set(file.relative_to(repo_path).parts)
+        if any(
+            p.startswith(".") or p in _EXCLUDED_DIRS or p.endswith(".egg-info")
+            for p in parts
+        ):
             continue
         parser = get_parser(file)
         if parser is None:
