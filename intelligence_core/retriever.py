@@ -46,8 +46,15 @@ class Retriever:
         ]
 
     @classmethod
-    def load_default(cls) -> "Retriever":
-        """Factory con embedder e store di default."""
+    def load_default(cls, collection_name: str = "code_intelligence") -> "Retriever":
+        """Factory con embedder e store di default.
+
+        Args:
+            collection_name: ChromaDB collection to connect to.
+                Defaults to ``"code_intelligence"``.
+                Use ``"doc_intelligence"`` for DocIntelligence,
+                ``"mentor_intelligence"`` for MentorIntelligence.
+        """
         from intelligence_core.embedder import get_embedder
-        from intelligence_core.store import get_store
-        return cls(embedder=get_embedder(), store=get_store())
+        from intelligence_core.store import ChromaStore
+        return cls(embedder=get_embedder(), store=ChromaStore(collection_name=collection_name))

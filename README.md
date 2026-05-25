@@ -18,6 +18,51 @@ code + docs  →  parse  →  chunks  →  embed  →  ChromaDB  →  REST API  
 
 ---
 
+## ⚡ Quick Start
+
+### Prerequisites
+
+```bash
+# 1. Ollama (local inference — no GPU required for embedding)
+#    Download from https://ollama.com, then:
+ollama serve
+ollama pull nomic-embed-text      # embedding model
+ollama pull qwen2.5-coder:7b      # generation model (or any other)
+```
+
+### Index your codebase in 3 commands
+
+```bash
+pip install intelligence-suite
+
+ci-parse /path/to/your/repo       # parse → chunks.jsonl
+ci-embed                           # embed → ChromaDB (local, no server needed)
+ci-serve                           # REST API → http://localhost:8080
+```
+
+### Ask a question
+
+```bash
+curl -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Where is authentication handled?"}'
+```
+
+```json
+{
+  "answer": "Authentication is handled in auth/jwt.py — the verify_token function ...",
+  "sources": [{"source": "auth/jwt.py", "type": "function", "score": 0.91}],
+  "confidence": 0.91,
+  "escalated": false,
+  "backend": "ollama",
+  "latency_ms": 312.4
+}
+```
+
+> **No cloud, no API key, no GPU required** for the default setup.
+
+---
+
 ## The problem it solves
 
 How much time does your team lose every week hunting down where a function is implemented,
@@ -92,7 +137,7 @@ to query your codebase in natural language.
 ```bash
 # Index a repository
 ci-parse /path/to/repo               # → chunks.jsonl
-ci-embed                              # reads chunks.jsonl by default
+ci-embed                              # reads chunks.jsonl → ChromaDB
 
 # Start the RAG server (default: http://localhost:8080)
 ci-serve
@@ -108,14 +153,16 @@ curl -X POST http://localhost:8080/api/v1/query \
 ```python
 from pathlib import Path
 from CodeIntelligence.parse_repo import parse_repo
+from CodeIntelligence.embed_chunks import embed_chunks
 from intelligence_core.retriever import Retriever
 
-# Parse programmatically (returns list[dict], optionally writes chunks.jsonl)
+# 1. Parse and embed (one-time)
 chunks = parse_repo(Path("/path/to/repo"), output=Path("chunks.jsonl"))
+embed_chunks(Path("chunks.jsonl"))   # → ChromaDB "code_intelligence"
 
-# Retrieve
-r = Retriever.load_default()
-results = r.search("Where is authentication handled?", domain="code", top_k=5)
+# 2. Query
+retriever = Retriever.load_default(collection_name="code_intelligence")
+results = retriever.search("Where is authentication handled?", domain="code", top_k=5)
 for hit in results:
     print(f"[{hit.chunk['source']}] score={hit.score:.2f}  {hit.chunk['text'][:120]}")
 ```
@@ -141,7 +188,7 @@ Ingests company documents across multiple formats with a 3-level PDF parsing str
 ```bash
 # Ingest documents (PDF, DOCX, XLSX, TXT, MD)
 di-ingest /path/to/docs              # → doc_chunks.jsonl
-di-embed                              # reads doc_chunks.jsonl by default
+di-embed                              # reads doc_chunks.jsonl → ChromaDB
 
 # Start the doc server (default: http://localhost:8081)
 di-serve
@@ -157,14 +204,16 @@ curl -X POST http://localhost:8081/api/v1/query \
 ```python
 from pathlib import Path
 from DocIntelligence.ingest_docs import ingest_docs
+from DocIntelligence.embed_docs import embed_docs
 from intelligence_core.retriever import Retriever
 
-# Ingest programmatically (returns list[dict], optionally writes doc_chunks.jsonl)
+# 1. Ingest and embed (one-time)
 chunks = ingest_docs(Path("/path/to/docs"), output=Path("doc_chunks.jsonl"))
+embed_docs(Path("doc_chunks.jsonl"))   # → ChromaDB "doc_intelligence"
 
-# Retrieve
-r = Retriever.load_default()
-results = r.search("Production deploy prerequisites", domain="doc", top_k=5)
+# 2. Query
+retriever = Retriever.load_default(collection_name="doc_intelligence")
+results = retriever.search("Production deploy prerequisites", domain="doc", top_k=5)
 for hit in results:
     print(f"[{hit.chunk['source']}] score={hit.score:.2f}  {hit.chunk['text'][:200]}")
 ```
@@ -256,7 +305,7 @@ with a unified schema:
 from intelligence_core.retriever import Retriever
 from intelligence_core.llm import get_llm_provider
 
-retriever = Retriever.load_default()
+retriever = Retriever.load_default(collection_name="code_intelligence")
 llm       = get_llm_provider()          # reads LLM_BACKEND from .env
 
 hits    = retriever.search("How is the database connection pooled?", domain="code", top_k=5)
@@ -275,12 +324,12 @@ for h in hits:
 from intelligence_core.llm import get_llm_provider
 from intelligence_core.retriever import Retriever
 
-retriever = Retriever.load_default()
+retriever = Retriever.load_default(collection_name="doc_intelligence")
 llm       = get_llm_provider()          # OpenAICompatProvider
 # For Groq:      set OPENAI_BASE_URL=https://api.groq.com/openai/v1
 # For Mistral:   set OPENAI_BASE_URL=https://api.mistral.ai/v1
 
-hits   = retriever.search("Explain the payment flow", domain="code", top_k=8)
+hits   = retriever.search("Explain the payment flow", domain="doc", top_k=8)
 answer = llm.generate("Explain the payment flow", "\n\n".join(h.chunk["text"] for h in hits))
 ```
 
@@ -302,7 +351,7 @@ llm = get_llm_provider("vllm")   # OpenAI-compat client → your vLLM server
 from intelligence_core.llm import get_llm_provider
 from intelligence_core.retriever import Retriever
 
-retriever = Retriever.load_default()
+retriever = Retriever.load_default(collection_name="code_intelligence")
 llm       = get_llm_provider("claude")
 
 hits   = retriever.search("Explain the entire auth flow", domain="code", top_k=8)
@@ -315,7 +364,7 @@ answer = llm.generate("Explain the entire auth flow", "\n\n".join(h.chunk["text"
 from intelligence_core.retriever import Retriever
 from langchain.schema import Document
 
-retriever = Retriever.load_default()
+retriever = Retriever.load_default(collection_name="doc_intelligence")
 hits = retriever.search("Deploy prerequisites", domain="doc", top_k=10)
 
 docs = [
@@ -362,15 +411,18 @@ the system automatically escalates to Claude — regardless of the primary `LLM_
 | Backend | `EMBED_BACKEND` | Extra | Notes |
 |---|---|---|---|
 | **Ollama** | `ollama` | *(none)* | Default — fully local |
-| **SentenceTransformer** | `st` | `[st]` | CPU-only, fully offline |
+| **SentenceTransformer** | `st` | `[st]` | CPU-only, fully offline, no Ollama needed |
 | **Claude / Voyage** | `claude` | `[claude]` | Cloud embeddings via Voyage AI |
 
 ### Vector store
 
 | Store | Status | Notes |
 |---|---|---|
-| **ChromaDB** | ✅ Default | Local, zero-config |
+| **ChromaDB** | ✅ Default | Embedded — runs inside the Python process, persists to `.chroma/` |
 | **pgvector** | 🔶 Roadmap | Enterprise, multi-tenant |
+
+> ChromaDB runs **embedded** — no separate server or Docker container needed.  
+> Data is persisted to `.chroma/` automatically and survives restarts.
 
 ---
 
@@ -432,12 +484,12 @@ All variables are accepted as plain environment variables too — no `.env` file
 |---|---|---|
 | `ci-parse <repo>` | CodeIntelligence | Parse repository into chunks → `chunks.jsonl` |
 | `ci-embed [file]` | CodeIntelligence | Embed chunks into ChromaDB (default: `chunks.jsonl`) |
-| `ci-serve` | CodeIntelligence | Start the code RAG server |
+| `ci-serve` | CodeIntelligence | Start the code RAG server on `CI_PORT` (default 8080) |
 | `di-ingest <dir>` | DocIntelligence | Ingest documents into chunks → `doc_chunks.jsonl` |
 | `di-embed [file]` | DocIntelligence | Embed doc chunks into ChromaDB (default: `doc_chunks.jsonl`) |
-| `di-serve` | DocIntelligence | Start the doc RAG server |
+| `di-serve` | DocIntelligence | Start the doc RAG server on `DI_PORT` (default 8081) |
 | `mi-ingest <dir>` | MentorIntelligence | Ingest best practice documents |
-| `mi-serve` | MentorIntelligence | Start the mentor server |
+| `mi-serve` | MentorIntelligence | Start the mentor server on `MI_PORT` (default 8082) |
 
 ---
 
