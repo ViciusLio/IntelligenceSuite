@@ -419,7 +419,8 @@ the system automatically escalates to Claude — regardless of the primary `LLM_
 | Store | Status | Notes |
 |---|---|---|
 | **ChromaDB** | ✅ Default | Embedded — runs inside the Python process, persists to `.chroma/` |
-| **pgvector** | 🔶 Roadmap | Enterprise, multi-tenant |
+| **pgvector** | 🔶 v0.2 | Enterprise, multi-tenant, PostgreSQL-native |
+| **Neo4j (Graph)** | 🔶 v0.3 | Code call graph, import graph, doc cross-references — hybrid retrieval |
 
 > ChromaDB runs **embedded** — no separate server or Docker container needed.  
 > Data is persisted to `.chroma/` automatically and survives restarts.
@@ -542,13 +543,26 @@ IntelligenceSuite/
 
 ## Roadmap
 
-| Version | Milestone |
-|---|---|
-| `0.1.x` | CodeIntelligence · DocIntelligence · MentorIntelligence · ChromaDB — **current** |
-| `0.2.0` | pgvector support · multi-tenant namespacing |
-| `0.3.0` | Streaming responses · WebSocket push notifications |
-| `0.4.0` | GitHub Actions indexing webhook · incremental re-index |
-| `1.0.0` | Production-grade · SLA-tested · full observability |
+### POC → Production evolution
+
+| Version | Milestone | Enterprise target |
+|---|---|---|
+| `0.1.x` | CodeIntelligence · DocIntelligence · MentorIntelligence · ChromaDB | **Current — POC ready** |
+| `0.2.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
+| `0.3.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
+| `0.4.0` | vLLM GPU serving · streaming responses · OpenTelemetry tracing · Prometheus metrics | Teams 50+, GPU cluster |
+| `0.5.0` | GitHub/GitLab webhook · incremental re-index · WebSocket push | Real-time knowledge base |
+| `1.0.0` | Kubernetes · horizontal scaling · SLA-tested · full observability | Production enterprise |
+
+### Why graph in v0.3?
+
+Vector search answers *"what is similar to my query?"*  
+Graph traversal answers *"what calls this function? what depends on this module? what documents reference this procedure?"*
+
+`parse_repo` already extracts `calls`, `imports`, and `decorators` for every chunk —
+the foundation for a full **code dependency graph** is already in place.
+Combined with vector similarity (GraphRAG pattern), this unlocks multi-hop reasoning
+that pure vector search cannot achieve.
 
 ---
 
