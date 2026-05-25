@@ -85,8 +85,8 @@ to query your codebase in natural language.
 
 ```bash
 # Index a repository
-ci-parse /path/to/repo
-ci-embed
+ci-parse /path/to/repo               # → chunks.jsonl
+ci-embed                              # reads chunks.jsonl by default
 
 # Start the RAG server (default: http://localhost:8080)
 ci-serve
@@ -100,17 +100,18 @@ curl -X POST http://localhost:8080/api/v1/query \
 ### Python API
 
 ```python
+from pathlib import Path
 from CodeIntelligence.parse_repo import parse_repo
 from intelligence_core.retriever import Retriever
 
-# Parse programmatically
-chunks = parse_repo("/path/to/repo")
+# Parse programmatically (returns list[dict], optionally writes chunks.jsonl)
+chunks = parse_repo(Path("/path/to/repo"), output=Path("chunks.jsonl"))
 
 # Retrieve
 r = Retriever.load_default()
-results = r.query("Where is authentication handled?", domain="code", top_k=5)
+results = r.search("Where is authentication handled?", domain="code", top_k=5)
 for hit in results:
-    print(f"[{hit.source}] {hit.text[:120]}")
+    print(f"[{hit.chunk['source']}] score={hit.score:.2f}  {hit.chunk['text'][:120]}")
 ```
 
 ---
@@ -133,8 +134,8 @@ Ingests company documents across multiple formats with a 3-level PDF parsing str
 
 ```bash
 # Ingest documents (PDF, DOCX, XLSX, TXT, MD)
-di-ingest /path/to/docs
-di-embed
+di-ingest /path/to/docs              # → doc_chunks.jsonl
+di-embed                              # reads doc_chunks.jsonl by default
 
 # Start the doc server (default: http://localhost:8081)
 di-serve
@@ -148,17 +149,18 @@ curl -X POST http://localhost:8081/api/v1/query \
 ### Python API
 
 ```python
+from pathlib import Path
 from DocIntelligence.ingest_docs import ingest_docs
 from intelligence_core.retriever import Retriever
 
-# Ingest programmatically
-ingest_docs("/path/to/docs")
+# Ingest programmatically (returns list[dict], optionally writes doc_chunks.jsonl)
+chunks = ingest_docs(Path("/path/to/docs"), output=Path("doc_chunks.jsonl"))
 
 # Retrieve
 r = Retriever.load_default()
-results = r.query("Production deploy prerequisites", domain="doc", top_k=5)
+results = r.search("Production deploy prerequisites", domain="doc", top_k=5)
 for hit in results:
-    print(f"[{hit.source}] {hit.text[:200]}")
+    print(f"[{hit.chunk['source']}] score={hit.score:.2f}  {hit.chunk['text'][:200]}")
 ```
 
 ---
@@ -244,32 +246,31 @@ with a unified schema:
 ### Ollama (local, zero cost)
 
 ```python
+from intelligence_core.embedder import get_embedder
+from intelligence_core.store import get_store
 from intelligence_core.retriever import Retriever
-from intelligence_core.config import Settings
 
-settings = Settings(embedder="ollama", ollama_model="nomic-embed-text")
-retriever = Retriever(settings=settings)
+# Uses EMBED_BACKEND=ollama and OLLAMA_EMBED_MODEL from .env (or defaults)
+retriever = Retriever(embedder=get_embedder(), store=get_store())
 
-results = retriever.query("How is the database connection pooled?", domain="code", top_k=5)
+results = retriever.search("How is the database connection pooled?", domain="code", top_k=5)
 for hit in results:
-    print(f"[{hit.source}] {hit.text[:200]}")
+    print(f"[{hit.chunk['source']}] score={hit.score:.2f}  {hit.chunk['text'][:200]}")
 ```
 
 ### Claude API (cloud escalation for hard queries)
 
 ```python
-from intelligence_core.config import Settings
+import os
+from intelligence_core.embedder import ClaudeEmbedder
+from intelligence_core.store import get_store
 from intelligence_core.retriever import Retriever
 
-# Stays local; escalates to Claude embeddings only when similarity < ESCALATION_THRESHOLD
-settings = Settings(
-    embedder="ollama",
-    escalation_threshold=0.65,
-    # claude_api_key loaded from CLAUDE_API_KEY env var
-)
-retriever = Retriever(settings=settings)
+# Set ANTHROPIC_API_KEY in .env — escalation kicks in automatically
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."   # or load from .env
+retriever = Retriever(embedder=ClaudeEmbedder(domain="code"), store=get_store())
 
-results = retriever.query("Explain the entire payment flow", domain="code", top_k=8)
+results = retriever.search("Explain the entire payment flow", domain="code", top_k=8)
 ```
 
 ### LangChain / LlamaIndex
@@ -279,12 +280,16 @@ from intelligence_core.retriever import Retriever
 from langchain.schema import Document
 
 retriever = Retriever.load_default()
-hits = retriever.query("Deploy prerequisites", domain="doc", top_k=10)
+hits = retriever.search("Deploy prerequisites", domain="doc", top_k=10)
 
 docs = [
     Document(
-        page_content=h.text,
-        metadata={"source": h.source, "domain": h.domain, "type": h.type},
+        page_content=h.chunk["text"],
+        metadata={
+            "source": h.chunk["source"],
+            "domain": h.chunk["domain"],
+            "type":   h.chunk["type"],
+        },
     )
     for h in hits
 ]
@@ -329,14 +334,22 @@ docs = [
 Copy `.env.example` to `.env` and edit:
 
 ```env
-EMBEDDER=ollama
-OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=nomic-embed-text
+# Embedding backend
+EMBED_BACKEND=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_EMBED_MODEL=nomic-embed-text
 
-STORE_BACKEND=chroma
-CHROMA_DIR=.chroma
+# Vector store
+VECTOR_STORE=chromadb
+CHROMA_PERSIST_DIR=./.chroma
 
-ESCALATION_THRESHOLD=0.65
+# Escalation (optional — works without)
+ESCALATION_THRESHOLD=0.70
+ANTHROPIC_API_KEY=
+
+# Server
+API_PORT=8080
+API_HOST=0.0.0.0
 ```
 
 All variables are accepted as plain environment variables too — no `.env` file required in CI/CD.
@@ -345,11 +358,11 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 | Command | Module | Action |
 |---|---|---|
-| `ci-parse <repo>` | CodeIntelligence | Parse repository into chunks |
-| `ci-embed` | CodeIntelligence | Embed chunks into ChromaDB |
+| `ci-parse <repo>` | CodeIntelligence | Parse repository into chunks → `chunks.jsonl` |
+| `ci-embed [file]` | CodeIntelligence | Embed chunks into ChromaDB (default: `chunks.jsonl`) |
 | `ci-serve` | CodeIntelligence | Start the code RAG server |
-| `di-ingest <dir>` | DocIntelligence | Ingest documents into chunks |
-| `di-embed` | DocIntelligence | Embed doc chunks into ChromaDB |
+| `di-ingest <dir>` | DocIntelligence | Ingest documents into chunks → `doc_chunks.jsonl` |
+| `di-embed [file]` | DocIntelligence | Embed doc chunks into ChromaDB (default: `doc_chunks.jsonl`) |
 | `di-serve` | DocIntelligence | Start the doc RAG server |
 | `mi-ingest <dir>` | MentorIntelligence | Ingest best practice documents |
 | `mi-serve` | MentorIntelligence | Start the mentor server |

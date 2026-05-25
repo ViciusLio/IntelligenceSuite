@@ -35,7 +35,7 @@ def embed_docs(input_file: Path, output_file: Path = None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("input")
+    parser.add_argument("input", nargs="?", default="doc_chunks.jsonl", help="File JSONL con chunk (default: doc_chunks.jsonl)")
     parser.add_argument("-o", "--output")
     args = parser.parse_args()
     embed_docs(Path(args.input), Path(args.output) if args.output else None)

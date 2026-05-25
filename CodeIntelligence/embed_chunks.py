@@ -47,7 +47,7 @@ def incremental_update(input_file: Path, output_file: Path = None):
 
 def main():
     parser = argparse.ArgumentParser(description="Aggiunge embedding ai chunk JSONL")
-    parser.add_argument("input", help="File JSONL con chunk")
+    parser.add_argument("input", nargs="?", default="chunks.jsonl", help="File JSONL con chunk (default: chunks.jsonl)")
     parser.add_argument("-o", "--output", help="File output (default: sovrascrive input)")
     parser.add_argument("--incremental", action="store_true")
     args = parser.parse_args()

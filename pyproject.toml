@@ -7,7 +7,8 @@ name = "intelligence-suite"
 version = "0.1.0"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "ViciusLio", email = "viciuslios@gmail.com" }]
 requires-python = ">=3.10"
 keywords = [
@@ -19,7 +20,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -56,6 +56,7 @@ ci-parse   = "CodeIntelligence.parse_repo:main"
 ci-embed   = "CodeIntelligence.embed_chunks:main"
 ci-serve   = "CodeIntelligence.rag_server:main"
 di-ingest  = "DocIntelligence.ingest_docs:main"
+di-embed   = "DocIntelligence.embed_docs:main"
 di-serve   = "DocIntelligence.doc_server:main"
 mi-ingest  = "MentorIntelligence.content.ingest_practices:main"
 mi-serve   = "MentorIntelligence.mentor_server:main"
