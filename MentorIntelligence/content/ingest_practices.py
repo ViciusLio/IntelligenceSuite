@@ -1,4 +1,4 @@
-"""Ingesta prassi aziendali come chunk domain=mentor nel vector store."""
+"""Ingest company best-practice documents as mentor chunks into ChromaDB."""
 
 from __future__ import annotations
 import argparse
@@ -13,10 +13,27 @@ try:
 except ImportError:
     HAS_YAML = False
 
+COLLECTION_NAME = "mentor_intelligence"
 
-def ingest_practices(practices_dir: Path, output: Path = None) -> list[dict]:
-    """Scansiona la directory e ingesta i file come chunk mentor."""
-    chunks = []
+
+def ingest_practices(
+    practices_dir: Path,
+    output: Path = None,
+    collection_name: str = COLLECTION_NAME,
+) -> list[dict]:
+    """
+    Full pipeline step:
+      1. Parse MD / TXT / YAML practice files into mentor chunks
+      2. Compute embeddings
+      3. Write JSONL (optional)
+      4. Upsert into ChromaDB — collection ready for mi-serve
+
+    Args:
+        practices_dir:    Directory containing practice files.
+        output:           Optional JSONL output path.
+        collection_name:  ChromaDB collection (default: ``mentor_intelligence``).
+    """
+    chunks: list[dict] = []
     for file in sorted(practices_dir.rglob("*")):
         if not file.is_file():
             continue
@@ -25,36 +42,70 @@ def ingest_practices(practices_dir: Path, output: Path = None) -> list[dict]:
         elif file.suffix in {".yaml", ".yml"} and HAS_YAML:
             chunks.extend(_parse_yaml_practice(file, practices_dir))
 
-    print(f"Prassi ingested: {len(chunks)} chunk da {practices_dir}")
+    print(f"Practices parsed: {len(chunks)} chunks from {practices_dir}")
 
+    if not chunks:
+        print("  ⚠  No chunks produced. Add .md / .txt / .yaml files to the directory.")
+        return []
+
+    # ── Embed ────────────────────────────────────────────────────────────────
+    from intelligence_core.embedder import get_embedder
+    from intelligence_core.config import settings
+
+    embedder   = get_embedder()
+    batch_size = settings.embed_batch_size
+    print(f"Embedding {len(chunks)} mentor chunks...")
+    for i in range(0, len(chunks), batch_size):
+        batch      = chunks[i: i + batch_size]
+        embeddings = embedder.embed([c["text"] for c in batch])
+        for chunk, emb in zip(batch, embeddings):
+            chunk["embedding"] = emb
+        print(f"  batch {i // batch_size + 1}: {len(batch)} chunks embedded")
+
+    # Warn if Ollama was down
+    zero = sum(
+        1 for c in chunks
+        if c.get("embedding") and all(v == 0.0 for v in c["embedding"])
+    )
+    if zero:
+        print(f"\n  ⚠  WARNING: {zero}/{len(chunks)} chunks have zero embeddings.")
+        print("     Ollama was unreachable. Fix: ollama serve && ollama pull nomic-embed-text\n")
+
+    # ── Write JSONL (optional) ───────────────────────────────────────────────
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("w", encoding="utf-8") as f:
             for c in chunks:
                 f.write(chunk_to_jsonl(c) + "\n")
-        print(f"Output: {output}")
+        print(f"JSONL saved: {output}")
+
+    # ── Load into ChromaDB ───────────────────────────────────────────────────
+    from intelligence_core.store import ChromaStore
+    store = ChromaStore(collection_name=collection_name)
+    store.add(chunks)
+    print(f"ChromaDB '{collection_name}': {store.count()} total chunks indexed")
 
     return chunks
 
 
 def _parse_text_practice(file: Path, root: Path) -> list[dict]:
     text = file.read_text(encoding="utf-8", errors="replace").strip()
-    rel = str(file.relative_to(root)).replace("\\", "/")
+    rel  = str(file.relative_to(root)).replace("\\", "/")
     stem = file.stem
     if len(text) < 30:
         return []
 
-    heading = stem.replace("_", " ").replace("-", " ").title()
+    heading    = stem.replace("_", " ").replace("-", " ").title()
     chunk_text = (
-        f"Practice: {heading} (in {file.name})\n"
-        f"Categoria: generale\n"
+        f"Practice: {heading} (from {file.name})\n"
+        f"Category: general\n"
         f"---\n{text[:3000]}"
     )
     return [make_chunk(
         domain="mentor", type_="practice",
         locator=f"practice.{_sanitize(stem)}",
         text=chunk_text, source=rel, language="markdown",
-        metadata={"category": "generale", "priority": "normale", "audience": ["all"]},
+        metadata={"category": "general", "priority": "normal", "audience": ["all"]},
     )]
 
 
@@ -64,20 +115,20 @@ def _parse_yaml_practice(file: Path, root: Path) -> list[dict]:
     except Exception:
         return _parse_text_practice(file, root)
 
-    rel = str(file.relative_to(root)).replace("\\", "/")
-    title = data.get("title", file.stem)
+    rel           = str(file.relative_to(root)).replace("\\", "/")
+    title         = data.get("title", file.stem)
     practice_type = data.get("type", "practice")
-    category = data.get("category", "generale")
-    priority = data.get("priority", "normale")
-    audience = data.get("audience", ["all"])
-    content = data.get("content", "")
+    category      = data.get("category", "general")
+    priority      = data.get("priority", "normal")
+    audience      = data.get("audience", ["all"])
+    content       = data.get("content", "")
 
     if not content or len(str(content)) < 30:
         return []
 
     chunk_text = (
-        f"Practice: {title} (in {file.name})\n"
-        f"Categoria: {category} | Priorita: {priority}\n"
+        f"Practice: {title} (from {file.name})\n"
+        f"Category: {category} | Priority: {priority}\n"
         f"---\n{str(content)[:3000]}"
     )
     return [make_chunk(
@@ -93,11 +144,21 @@ def _sanitize(s: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingesta prassi aziendali come chunk mentor")
-    parser.add_argument("practices", nargs="?", default="./practices")
-    parser.add_argument("-o", "--output", default="mentor_chunks.jsonl")
+    parser = argparse.ArgumentParser(
+        description="Ingest practice files and load into ChromaDB"
+    )
+    parser.add_argument("practices", nargs="?", default="./practices",
+                        help="Directory with practice files (default: ./practices)")
+    parser.add_argument("-o", "--output", default="mentor_chunks.jsonl",
+                        help="JSONL output path (default: mentor_chunks.jsonl)")
+    parser.add_argument("--collection", default=COLLECTION_NAME,
+                        help=f"ChromaDB collection name (default: {COLLECTION_NAME})")
     args = parser.parse_args()
-    ingest_practices(Path(args.practices), Path(args.output))
+    ingest_practices(
+        Path(args.practices),
+        Path(args.output),
+        collection_name=args.collection,
+    )
 
 
 if __name__ == "__main__":

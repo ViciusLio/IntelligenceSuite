@@ -1,15 +1,18 @@
-"""Server RAG per CodeIntelligence — monta intelligence_core.server_base."""
+"""RAG server for CodeIntelligence — mounts intelligence_core.server_base."""
 
 from __future__ import annotations
 import uvicorn
 
 from intelligence_core.retriever import Retriever
+from intelligence_core.embedder import get_embedder
+from intelligence_core.store import ChromaStore
 from intelligence_core.server_base import create_app
 from intelligence_core.config import settings
 
 
 def build_app():
-    retriever = Retriever.load_default()
+    store     = ChromaStore(collection_name="code_intelligence")
+    retriever = Retriever(embedder=get_embedder(), store=store)
     return create_app(title="CodeIntelligence RAG Server", retriever=retriever)
 
 

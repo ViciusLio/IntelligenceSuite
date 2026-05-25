@@ -18,7 +18,7 @@ class QueryRequest(BaseModel):
     question: str
     top_k:     int   = 5
     domain:    str | None = None
-    min_score: float = 0.0
+    min_score: float = 0.3
 
 
 class QueryResponse(BaseModel):

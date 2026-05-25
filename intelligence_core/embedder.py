@@ -39,7 +39,12 @@ class OllamaEmbedder:
             resp.raise_for_status()
             return resp.json()["embedding"]
         except Exception as e:
-            logger.warning("OllamaEmbedder fallback a zeri: %s", e)
+            logger.error(
+                "OllamaEmbedder: cannot reach %s (model=%s) — returning zero vector.\n"
+                "  Fix: ollama serve && ollama pull %s\n"
+                "  Or switch: EMBED_BACKEND=st in .env (no server required)",
+                self.base_url, self.model, self.model,
+            )
             return [0.0] * 384
 
     def embed_one(self, text: str) -> list[float]:
