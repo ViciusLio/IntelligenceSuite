@@ -10,6 +10,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.2] — 2026-05-26
+
+### Fixed
+- `parse_repo` now excludes `build/`, `dist/`, `venv/`, `.venv/`, `node_modules/`,
+  `.tox/`, `site-packages/`, `.eggs/`, `*.egg-info/` from indexing.
+  Previously, running `python -m build` in the repo root caused `build/lib/` to be
+  indexed alongside the real sources, producing duplicate chunk IDs and a
+  `DuplicateIDError` in ChromaDB on `upsert`.
+
+---
+
 ## [0.1.1] — 2026-05-26
 
 ### Fixed
