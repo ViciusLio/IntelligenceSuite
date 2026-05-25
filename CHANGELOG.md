@@ -10,6 +10,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.1] — 2026-05-26
+
+### Fixed
+- `Retriever.load_default()` now accepts `collection_name` parameter and connects to the
+  correct ChromaDB collection (was defaulting to `"intelligence_suite"` — an empty collection —
+  instead of `"code_intelligence"` / `"doc_intelligence"` / `"mentor_intelligence"`)
+
+### Docs
+- README: added ⚡ Quick Start section with Prerequisites, 3-command setup, and sample response
+- README: fixed all Python API examples to pass `collection_name` explicitly
+- README: clarified ChromaDB embedded mode (no separate server needed)
+- README: added port numbers to CLI reference table
+
+---
+
 ## [0.1.0] — 2026-05-26
 
 ### Added
