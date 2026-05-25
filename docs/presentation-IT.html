@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelligenceSuite | Vincenzo Lio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+    <style>
+        :root {
+            --dark:       #030D1E;
+            --dark-mid:   #071D38;
+            --dark-light: #0C2E58;
+            --red:        #1A7EE0;
+            --red-light:  #48A8FF;
+            --ochre:      #D08828;
+            --gold:       #F5B200;
+            --gold-light: #FFD030;
+            --white:      #FFFFFF;
+            --warm-bg:    #F3F8FE;
+            --warm-card:  #E4EEF9;
+            --warm-gray:  #50607A;
+            --warm-black: #030D1E;
+            --green-ok:   #2E9A5A;
+        }
+
+        * { box-sizing: border-box; }
+        .reveal { font-family: 'Red Hat Display', sans-serif; font-size: 16px; }
+        .reveal .slides { text-align: left; }
+        .reveal h1,.reveal h2,.reveal h3,.reveal h4,.reveal h5 {
+            font-family: 'Red Hat Display', sans-serif;
+            text-transform: none; letter-spacing: -0.02em; margin: 0; padding: 0;
+        }
+        .reveal p,.reveal li,.reveal td,.reveal th { font-family: 'Red Hat Display', sans-serif; margin: 0; }
+        .reveal .progress { background: rgba(72,168,255,0.2); }
+        .reveal .progress span { background: var(--red); }
+        .reveal .controls { color: var(--red); }
+        .reveal .slide-number {
+            background: transparent; color: rgba(255,255,255,0.3);
+            font-family: 'Red Hat Display', sans-serif; font-size: 12px; font-weight: 700;
+        }
+
+        .slide { width:100%; height:100%; display:flex; flex-direction:column; padding:40px 56px 36px; }
+        .slide-dark {
+            background: linear-gradient(140deg, var(--dark) 0%, var(--dark-mid) 60%, var(--dark-light) 100%);
+            color: var(--white);
+        }
+        .slide-light { background: var(--warm-bg); color: var(--warm-black); }
+
+        .slide-header {
+            display:flex; justify-content:space-between; align-items:center;
+            margin-bottom:28px; flex-shrink:0;
+        }
+        .slide-eyebrow { font-size:11px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; }
+        .ey-dark  { color: rgba(255,255,255,0.38); }
+        .ey-light { color: var(--ochre); }
+
+        .vl-mark { display:flex; align-items:center; gap:10px; }
+        .vl-box {
+            width:32px; height:32px; background:var(--red); border-radius:7px;
+            display:flex; align-items:center; justify-content:center;
+            color:white; font-weight:900; font-size:13px; letter-spacing:-0.03em; flex-shrink:0;
+        }
+        .vl-name { font-size:13px; font-weight:800; }
+        .vl-name-dark  { color: rgba(255,255,255,0.7); }
+        .vl-name-light { color: var(--dark); }
+
+        .bg-deco { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; overflow:hidden; }
+
+        .title-lg { font-size:52px; font-weight:900; line-height:1.08; margin-bottom:14px; }
+        .title-md { font-size:36px; font-weight:900; line-height:1.12; margin-bottom:16px; }
+        .accent-red  { color: var(--red-light); }
+        .accent-gold { color: var(--gold); }
+        .body-text { font-size:15px; color:var(--warm-gray); line-height:1.7; margin-bottom:18px; }
+
+        .feat-card {
+            background:var(--warm-card); border-radius:12px; padding:18px;
+            border-left:4px solid var(--red); display:flex; flex-direction:column;
+        }
+        .feat-card .ico { font-size:20px; margin-bottom:7px; }
+        .feat-card h4 { font-size:13px; font-weight:800; color:var(--dark); margin-bottom:5px; }
+        .feat-card p  { font-size:12px; color:var(--warm-gray); line-height:1.55; }
+
+        .arch-box {
+            background:rgba(0,0,0,0.3); border:1px solid rgba(72,168,255,0.2);
+            border-radius:14px; padding:20px; flex:1; display:flex; flex-direction:column; gap:8px;
+        }
+        .arch-layer {
+            background:rgba(72,168,255,0.1); border:1px solid rgba(72,168,255,0.3);
+            border-radius:9px; padding:11px 14px; display:flex; align-items:center; gap:11px;
+        }
+        .arch-layer.hl { background:rgba(26,126,224,0.2); border-color:var(--red); }
+        .arch-layer.gold-hl { background:rgba(208,136,40,0.18); border-color:var(--ochre); }
+        .arch-icon {
+            width:32px; height:32px; background:var(--ochre); border-radius:7px;
+            display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;
+        }
+        .arch-icon.red-ico { background:var(--red); }
+        .arch-icon.green-ico { background:var(--green-ok); }
+        .arch-text strong { display:block; font-size:12px; font-weight:800; color:white; }
+        .arch-text span   { font-size:11px; opacity:0.5; color:white; }
+
+        .tech-group { display:flex; flex-direction:column; gap:6px; }
+        .tech-label { font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.38); }
+        .tech-pills { display:flex; flex-wrap:wrap; gap:5px; }
+        .tech-pill {
+            background:rgba(255,255,255,0.08); border:1px solid rgba(72,168,255,0.35);
+            color:white; padding:4px 11px; border-radius:20px; font-size:11px; font-weight:700;
+        }
+        .tech-pill.hl    { background:var(--red); border-color:var(--red); }
+        .tech-pill.gold  { background:var(--ochre); border-color:var(--ochre); color:var(--dark); }
+        .tech-pill.green { background:var(--green-ok); border-color:var(--green-ok); }
+
+        .num-card {
+            background:var(--warm-card); border-radius:14px; padding:20px 18px;
+            border-bottom:4px solid var(--red); display:flex; flex-direction:column;
+        }
+        .num-val { font-size:44px; font-weight:900; color:var(--dark); line-height:1; margin-bottom:5px; }
+        .num-lbl { font-size:12px; color:var(--warm-gray); font-weight:600; line-height:1.4; }
+
+        .big-quote {
+            background:linear-gradient(135deg,var(--dark),var(--dark-mid));
+            color:white; border-radius:14px; padding:22px 30px;
+            font-size:18px; font-weight:700; line-height:1.45; position:relative;
+        }
+        .big-quote::before {
+            content:'"'; font-family:Georgia,serif; font-size:70px; line-height:1;
+            color:var(--gold); opacity:0.4;
+            position:absolute; top:-6px; left:20px;
+        }
+        .big-quote .hl { color:var(--gold); }
+
+        .code-block {
+            background:rgba(0,0,0,0.5); border:1px solid rgba(72,168,255,0.3);
+            border-radius:10px; padding:16px 20px;
+            font-family:'Courier New',monospace; font-size:13px; line-height:1.6;
+        }
+        .code-block .kw  { color:var(--red-light); }
+        .code-block .fn  { color:var(--gold); }
+        .code-block .str { color:#7ED98B; }
+        .code-block .cm  { color:rgba(255,255,255,0.35); }
+        .code-block .pmt { color:var(--ochre); }
+
+        .step-flow {
+            display:flex; align-items:stretch; gap:0;
+            margin:18px 0; border-radius:14px; overflow:hidden;
+        }
+        .step-item {
+            flex:1; padding:18px 16px; display:flex; flex-direction:column; gap:6px; position:relative;
+        }
+        .step-item::after {
+            content:'→'; position:absolute; right:-10px; top:50%; transform:translateY(-50%);
+            color:rgba(255,255,255,0.25); font-size:18px; font-weight:900; z-index:2;
+        }
+        .step-item:last-child::after { display:none; }
+        .step-1 { background:rgba(26,126,224,0.18); border:1px solid rgba(26,126,224,0.35); }
+        .step-2 { background:rgba(208,136,40,0.15); border:1px solid rgba(208,136,40,0.35); }
+        .step-3 { background:rgba(46,154,90,0.15); border:1px solid rgba(46,154,90,0.35); }
+        .step-4 { background:rgba(245,178,0,0.12); border:1px solid rgba(245,178,0,0.35); }
+        .step-icon  { font-size:22px; }
+        .step-title { font-size:12px; font-weight:800; color:white; }
+        .step-sub   { font-size:10px; color:rgba(255,255,255,0.45); line-height:1.4; }
+
+        .tag-row { display:flex; flex-wrap:wrap; gap:7px; margin-top:18px; }
+        .tag {
+            background:var(--dark); color:var(--gold);
+            padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700;
+            border:1px solid rgba(72,168,255,0.3);
+        }
+
+        .s1-terminal {
+            background:rgba(0,0,0,0.5); border:1px solid rgba(72,168,255,0.4);
+            border-radius:10px; padding:14px 22px;
+            font-family:'Courier New',monospace; font-size:13px;
+            display:inline-block; margin-bottom:28px; max-width:700px;
+        }
+        .s1-terminal .prompt { color:var(--ochre); }
+        .s1-terminal .cmd    { color:var(--white); }
+        .s1-terminal .out    { color:#7ED98B; margin-top:6px; }
+        .s1-title  { font-size:66px; font-weight:900; line-height:1.02; margin-bottom:12px; }
+        .s1-sub    { font-size:19px; font-weight:500; opacity:0.65; margin-bottom:36px; }
+        .s1-author { display:flex; align-items:center; gap:14px; }
+        .s1-avatar {
+            width:50px; height:50px; background:var(--red); border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+            font-size:16px; font-weight:900; color:white; flex-shrink:0;
+        }
+        .s1-author-name { display:block; font-size:16px; font-weight:800; }
+        .s1-author-role { display:block; font-size:12px; opacity:0.55; }
+
+        .badge-dark {
+            background:rgba(72,168,255,0.12); border:1px solid rgba(72,168,255,0.3);
+            color:var(--red-light); padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700;
+        }
+        .badge-gold {
+            background:rgba(245,178,0,0.15); border:1px solid rgba(245,178,0,0.4);
+            color:var(--gold); padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700;
+        }
+
+        .module-card {
+            border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px;
+        }
+        .module-card.light-card {
+            background:var(--warm-card); border:1px solid #D4E4F5; border-left:4px solid var(--red);
+        }
+        .module-card .mod-icon  { font-size:24px; }
+        .module-card .mod-name  { font-size:14px; font-weight:900; }
+        .module-card .mod-desc  { font-size:11px; line-height:1.55; opacity:0.65; }
+        .module-card .mod-pills { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+        .module-card .mod-pill  {
+            font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px;
+            background:rgba(72,168,255,0.15); border:1px solid rgba(72,168,255,0.3); color:var(--red-light);
+        }
+
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .cursor {
+            display:inline-block; width:2px; height:0.9em; background:var(--ochre);
+            vertical-align:text-bottom; animation:blink 1s step-end infinite; margin-left:2px;
+        }
+        .reveal .fragment { transition:all 0.35s ease; }
+    </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ================================================================
+     SLIDE 1 — TITOLO
+     ================================================================ -->
+<section>
+<div class="slide slide-dark" style="position:relative; justify-content:center;">
+    <div class="bg-deco">
+        <svg width="100%" height="100%" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;">
+            <circle cx="1140" cy="160" r="220" stroke="#1A7EE0" stroke-width="1" fill="none" opacity="0.08"/>
+            <circle cx="1140" cy="160" r="360" stroke="#F5B200" stroke-width="1" fill="none" opacity="0.04"/>
+            <circle cx="1140" cy="160" r="500" stroke="#48A8FF" stroke-width="1" fill="none" opacity="0.025"/>
+            <circle cx="80"   cy="620" r="160" stroke="#1A7EE0" stroke-width="1" fill="none" opacity="0.05"/>
+            <path d="M0,660 Q320,630 640,660 T1280,660" stroke="#48A8FF" stroke-width="1.5" fill="none" opacity="0.08"/>
+        </svg>
+    </div>
+
+    <div class="slide-header" style="position:relative;z-index:2;">
+        <div class="vl-mark"><div class="vl-box">VL</div></div>
+        <div class="slide-eyebrow ey-dark">Data &amp; AI Engineer &nbsp;·&nbsp; Enterprise RAG</div>
+    </div>
+
+    <div class="s1-terminal fragment fade-in" style="position:relative;z-index:2;">
+        <div><span class="prompt">$ </span><span class="cmd">python -m CodeIntelligence.parse_repo ./src</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">curl -X POST localhost:8080/api/v1/query -d '{"question":"Dove gestite l autenticazione?"}'</span></div>
+        <div class="out">▶ &nbsp;Trovato in src/auth/jwt_handler.py · riga 42 · confidenza 0.94 &nbsp;✓<span class="cursor"></span></div>
+    </div>
+
+    <div style="position:relative;z-index:2;">
+        <div class="s1-title">
+            <span class="accent-gold">Intelligence</span>Suite
+        </div>
+        <div class="s1-sub">La conoscenza aziendale a portata di mano - on-premise, senza cloud obbligatorio</div>
+
+        <div class="s1-author">
+            <div class="s1-avatar">VL</div>
+            <div>
+                <span class="s1-author-name">Vincenzo Lio</span>
+                <span class="s1-author-role">Data &amp; AI Engineer &nbsp;·&nbsp; Technical Expert &amp; Automation</span>
+            </div>
+        </div>
+        <div class="tag-row">
+            <span class="tag">Python · FastAPI</span>
+            <span class="tag">ChromaDB · pgvector</span>
+            <span class="tag">Ollama · Claude</span>
+            <span class="tag">RAG · Domain-Aware</span>
+            <span class="tag">On-Premise</span>
+            <span class="tag">v0.1.0</span>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 2 — IL PROBLEMA
+     ================================================================ -->
+<section>
+<div class="slide slide-light">
+    <div class="slide-header">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-light">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-light">02 &nbsp;— &nbsp;Il Problema</div>
+    </div>
+
+    <div style="display:flex; gap:44px; flex:1; min-height:0;">
+        <div style="flex:0 0 280px; display:flex; flex-direction:column;">
+            <div class="title-md" style="color:var(--dark);">
+                Il tuo team perde<br><span class="accent-red">ore ogni settimana</span><br>a cercare le risposte
+            </div>
+            <div class="body-text">
+                Codice senza documentazione. Procedure sepolte in cartelle. Colleghi che non ci sono piu'.<br>
+                Ogni ricerca e' un'indagine manuale.
+            </div>
+            <div class="big-quote" style="font-size:15px; padding:18px 24px; margin-top:auto;">
+                "Chi ha scritto questo servizio?<br>Dove viene gestita l'autenticazione?<br>
+                <span class="hl">Cosa serve per il deploy?</span>"
+            </div>
+        </div>
+
+        <div style="flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:13px;">
+            <div class="feat-card fragment fade-up" data-fragment-index="0">
+                <div class="ico">🔍</div>
+                <h4>Codice senza documentazione</h4>
+                <p>Funzioni senza docstring, servizi che nessuno spiega. Capire richiede ore di lettura.</p>
+            </div>
+            <div class="feat-card fragment fade-up" data-fragment-index="1">
+                <div class="ico">📁</div>
+                <h4>Procedure sepolte nelle cartelle</h4>
+                <p>PDF, Word, XLS sparsi tra share e Drive. Da rileggere ogni volta per trovare un solo dettaglio.</p>
+            </div>
+            <div class="feat-card fragment fade-up" data-fragment-index="2">
+                <div class="ico">🐢</div>
+                <h4>Onboarding dolorosissimo</h4>
+                <p>Un nuovo assunto impiega settimane per diventare autonomo. Ogni domanda interrompe un esperto.</p>
+            </div>
+            <div class="feat-card fragment fade-up" data-fragment-index="3">
+                <div class="ico">☁️</div>
+                <h4>Lock-in cloud forzato</h4>
+                <p>Gli strumenti esistenti mandano i dati ad API esterne. Enterprise e settori regolamentati non possono accettarlo.</p>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 3 — LA SOLUZIONE
+     ================================================================ -->
+<section>
+<div class="slide slide-dark" style="position:relative;">
+    <div class="bg-deco">
+        <svg width="100%" height="100%" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;">
+            <circle cx="1200" cy="620" r="300" stroke="#48A8FF" stroke-width="1" fill="none" opacity="0.05"/>
+            <circle cx="1200" cy="620" r="450" stroke="#F5B200" stroke-width="1" fill="none" opacity="0.03"/>
+        </svg>
+    </div>
+
+    <div class="slide-header" style="position:relative;z-index:2;">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-dark">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-dark">03 &nbsp;— &nbsp;La Soluzione</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; flex:1; position:relative;z-index:2;">
+        <div style="display:flex; flex-direction:column; justify-content:center; gap:20px;">
+            <div style="font-size:36px; font-weight:900; line-height:1.15;">
+                Indicizza una volta.<br><span class="accent-gold">Rispondi sempre.</span><br>
+                <span style="font-size:22px; opacity:0.6;">On-premise.</span>
+            </div>
+            <div style="font-size:14px; line-height:1.75; opacity:0.7;">
+                IntelligenceSuite indicizza il tuo codebase e i tuoi documenti aziendali.
+                Risponde in linguaggio naturale, cita la fonte esatta, gira interamente sui tuoi server.
+                Nessun dato esce dalla tua infrastruttura.
+            </div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+                <div class="arch-layer hl fragment fade-left" data-fragment-index="0">
+                    <div class="arch-icon red-ico">🧠</div>
+                    <div class="arch-text">
+                        <strong>LLM locale di default</strong>
+                        <span>Ollama di default — Claude API solo su escalation quando serve</span>
+                    </div>
+                </div>
+                <div class="arch-layer fragment fade-left" data-fragment-index="1">
+                    <div class="arch-icon">🗄️</div>
+                    <div class="arch-text">
+                        <strong>Vector store on-premise</strong>
+                        <span>ChromaDB locale · pgvector roadmap per enterprise multi-tenant</span>
+                    </div>
+                </div>
+                <div class="arch-layer gold-hl fragment fade-left" data-fragment-index="2">
+                    <div class="arch-icon">🔌</div>
+                    <div class="arch-text">
+                        <strong>Zero lock-in</strong>
+                        <span>Embedder intercambiabile, store intercambiabile, parser pluggabili</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arch-box fragment fade-right" data-fragment-index="0" style="justify-content:center;">
+            <div style="font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.38); margin-bottom:8px;">Come funziona</div>
+            <div class="arch-layer" style="margin-bottom:4px;">
+                <div class="arch-icon">📂</div>
+                <div class="arch-text"><strong>1. Ingestione</strong><span>Parsing codice + documenti → chunk domain-aware</span></div>
+            </div>
+            <div style="text-align:center; color:rgba(72,168,255,0.4); font-size:13px; padding:3px 0;">↓</div>
+            <div class="arch-layer" style="margin-bottom:4px;">
+                <div class="arch-icon red-ico">🔢</div>
+                <div class="arch-text"><strong>2. Embedding</strong><span>Ollama / SentenceTransformer → vettori</span></div>
+            </div>
+            <div style="text-align:center; color:rgba(72,168,255,0.4); font-size:13px; padding:3px 0;">↓</div>
+            <div class="arch-layer" style="margin-bottom:4px;">
+                <div class="arch-icon">🔍</div>
+                <div class="arch-text"><strong>3. Retrieval</strong><span>Ricerca semantica + keyword boost → top-k</span></div>
+            </div>
+            <div style="text-align:center; color:rgba(72,168,255,0.4); font-size:13px; padding:3px 0;">↓</div>
+            <div class="arch-layer hl">
+                <div class="arch-icon green-ico">💬</div>
+                <div class="arch-text"><strong>4. Risposta</strong><span>LLM genera risposta con fonti citate</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 4 — ARCHITETTURA
+     ================================================================ -->
+<section>
+<div class="slide slide-light">
+    <div class="slide-header">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-light">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-light">04 &nbsp;— &nbsp;Architettura</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; flex:1;">
+        <div class="module-card light-card fragment fade-up" data-fragment-index="0">
+            <div class="mod-icon">⚙️</div>
+            <div class="mod-name" style="color:var(--dark);">intelligence_core</div>
+            <div class="mod-desc" style="color:var(--warm-gray);">Layer condiviso tra tutti i moduli. Definisce il contratto universale dei chunk, l'astrazione embedder, l'interfaccia del vector store, il retriever con keyword boost, la escalation policy e il server FastAPI base.</div>
+            <div class="mod-pills">
+                <span class="mod-pill">Chunk schema</span>
+                <span class="mod-pill">ChromaDB</span>
+                <span class="mod-pill">Retriever</span>
+                <span class="mod-pill">Escalation</span>
+                <span class="mod-pill">FastAPI</span>
+            </div>
+        </div>
+        <div class="module-card light-card fragment fade-up" data-fragment-index="1" style="border-left-color:var(--ochre);">
+            <div class="mod-icon">💻</div>
+            <div class="mod-name" style="color:var(--dark);">CodeIntelligence</div>
+            <div class="mod-desc" style="color:var(--warm-gray);">Indicizza il codice sorgente con chunking domain-aware. Python via AST, TypeScript, Go, YAML, SQL e Markdown via parser a pattern. Estrae funzioni, classi, docstring e firme.</div>
+            <div class="mod-pills">
+                <span class="mod-pill">Python AST</span>
+                <span class="mod-pill">TypeScript</span>
+                <span class="mod-pill">Go · YAML · SQL</span>
+                <span class="mod-pill">RAG server</span>
+            </div>
+        </div>
+        <div class="module-card light-card fragment fade-up" data-fragment-index="2" style="border-left-color:var(--green-ok);">
+            <div class="mod-icon">📄</div>
+            <div class="mod-name" style="color:var(--dark);">DocIntelligence</div>
+            <div class="mod-desc" style="color:var(--warm-gray);">Indicizza documenti aziendali con parsing structure-aware. PDF a 3 livelli (pdfplumber → OCR → raw), DOCX heading-aware, XLSX per foglio. Degradazione graceful - non crasha mai.</div>
+            <div class="mod-pills">
+                <span class="mod-pill">PDF 3 livelli</span>
+                <span class="mod-pill">DOCX heading</span>
+                <span class="mod-pill">XLSX tabelle</span>
+                <span class="mod-pill">TXT · MD</span>
+            </div>
+        </div>
+        <div class="module-card light-card fragment fade-up" data-fragment-index="3" style="border-left-color:var(--gold);">
+            <div class="mod-icon">🎓</div>
+            <div class="mod-name" style="color:var(--dark);">MentorIntelligence</div>
+            <div class="mod-desc" style="color:var(--warm-gray);">Orchestratore di onboarding adattivo. Rileva il profilo utente (developer / non-developer), costruisce un percorso di apprendimento personalizzato, interroga codice + documenti + prassi insieme con reranking cross-domain.</div>
+            <div class="mod-pills">
+                <span class="mod-pill">Profile detection</span>
+                <span class="mod-pill">Session mgmt</span>
+                <span class="mod-pill">Path builder</span>
+                <span class="mod-pill">Cross-domain RAG</span>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 5 — CODEINTELLIGENCE
+     ================================================================ -->
+<section>
+<div class="slide slide-dark" style="position:relative;">
+    <div class="bg-deco">
+        <svg width="100%" height="100%" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;">
+            <circle cx="100" cy="100" r="200" stroke="#48A8FF" stroke-width="1" fill="none" opacity="0.05"/>
+        </svg>
+    </div>
+
+    <div class="slide-header" style="position:relative;z-index:2;">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-dark">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-dark">05 &nbsp;— &nbsp;CodeIntelligence</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; flex:1; position:relative;z-index:2;">
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="font-size:30px; font-weight:900; line-height:1.2;">
+                Interroga il tuo codice<br>in <span class="accent-gold">linguaggio naturale</span>
+            </div>
+            <div class="arch-box" style="flex:1;">
+                <div class="arch-layer hl">
+                    <div class="arch-icon red-ico">🐍</div>
+                    <div class="arch-text"><strong>Python — AST completo</strong><span>Funzioni, classi, docstring, type hint, decoratori</span></div>
+                </div>
+                <div class="arch-layer">
+                    <div class="arch-icon">📘</div>
+                    <div class="arch-text"><strong>TypeScript</strong><span>Funzioni, interfacce, export, JSDoc — parser regex</span></div>
+                </div>
+                <div class="arch-layer">
+                    <div class="arch-icon">🐹</div>
+                    <div class="arch-text"><strong>Go</strong><span>Dichiarazioni func / type, commenti package-level</span></div>
+                </div>
+                <div class="arch-layer gold-hl">
+                    <div class="arch-icon">📋</div>
+                    <div class="arch-text"><strong>YAML · SQL · Markdown</strong><span>Sezioni, query, heading - sempre con attribuzione della fonte</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div class="code-block fragment fade-in" data-fragment-index="0">
+<span class="pmt">$</span> curl -X POST localhost:8080/api/v1/query \<br>
+&nbsp;&nbsp;-d '<span class="str">{"question": "Dove viene validato il JWT?"}</span>'<br><br>
+<span class="fn">{</span><br>
+&nbsp;&nbsp;<span class="str">"answer"</span>: <span class="str">"La validazione JWT e' in auth/jwt_handler.py,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">funzione verify_token() alla riga 42..."</span>,<br>
+&nbsp;&nbsp;<span class="str">"sources"</span>: [<span class="str">"auth/jwt_handler.py:42"</span>],<br>
+&nbsp;&nbsp;<span class="str">"confidence"</span>: <span class="kw">0.94</span>,<br>
+&nbsp;&nbsp;<span class="str">"escalated"</span>: <span class="kw">false</span><br>
+<span class="fn">}</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="num-card fragment fade-up" data-fragment-index="1">
+                    <div class="num-val" style="color:var(--dark);">6</div>
+                    <div class="num-lbl">Linguaggi supportati<br>Python, TS, Go, YAML, SQL, MD</div>
+                </div>
+                <div class="num-card fragment fade-up" data-fragment-index="1">
+                    <div class="num-val" style="color:var(--dark);">AST</div>
+                    <div class="num-lbl">Python parsato via AST<br>chunking semantico completo</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 6 — DOCINTELLIGENCE
+     ================================================================ -->
+<section>
+<div class="slide slide-light">
+    <div class="slide-header">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-light">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-light">06 &nbsp;— &nbsp;DocIntelligence</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; flex:1;">
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <div class="title-md" style="color:var(--dark);">
+                Ogni documento.<br><span class="accent-red">Ogni formato.</span><br>Non crasha mai.
+            </div>
+            <div class="body-text">
+                Parsing best-effort a 3 livelli - restituisce sempre almeno un chunk, indipendentemente da quanto sia complesso o corrotto il file sorgente.
+            </div>
+            <div class="big-quote" style="font-size:14px; padding:16px 22px;">
+                "Quali sono i passi di rollback per il deploy in produzione?"<br>
+                <span class="hl">→ Trovato in deploy_procedure.pdf · Sezione 4 · pagina 3</span>
+            </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <div class="feat-card">
+                <div class="ico">📕</div>
+                <h4>PDF — parsing a 3 livelli</h4>
+                <p><strong>Livello 1:</strong> pdfplumber con rilevamento heading via coordinate y e font size.<br>
+                <strong>Livello 2:</strong> OCR via pytesseract per pagine scansionate.<br>
+                <strong>Livello 3:</strong> fallback regex su binario grezzo - non fallisce mai.</p>
+            </div>
+            <div class="feat-card" style="border-left-color:var(--ochre);">
+                <div class="ico">📘</div>
+                <h4>DOCX — heading-aware</h4>
+                <p>Legge gli stili Heading 1/2/3 per sezioni strutturate. Tabelle estratte in Markdown. Sezioni con corpo vuoto vengono preservate.</p>
+            </div>
+            <div class="feat-card" style="border-left-color:var(--green-ok);">
+                <div class="ico">📗</div>
+                <h4>XLSX · TXT · Markdown</h4>
+                <p>Chunking per foglio per Excel con anteprima tabella Markdown. Testo semplice e Markdown con splitting basato sugli heading.</p>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 7 — MENTORINTELLIGENCE
+     ================================================================ -->
+<section>
+<div class="slide slide-dark" style="position:relative;">
+    <div class="bg-deco">
+        <svg width="100%" height="100%" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;">
+            <circle cx="640" cy="780" r="400" stroke="#F5B200" stroke-width="1" fill="none" opacity="0.04"/>
+        </svg>
+    </div>
+
+    <div class="slide-header" style="position:relative;z-index:2;">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-dark">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-dark">07 &nbsp;— &nbsp;MentorIntelligence</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; flex:1; position:relative;z-index:2;">
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div style="font-size:30px; font-weight:900; line-height:1.2;">
+                Onboarding giorno 1<br>in <span class="accent-gold">minuti</span>,<br>non settimane
+            </div>
+            <div style="font-size:14px; line-height:1.7; opacity:0.7;">
+                MentorIntelligence rileva se l'utente e' uno sviluppatore o un business user,
+                costruisce un percorso di onboarding personalizzato e risponde alle domande
+                interrogando codice, documenti e prassi aziendali insieme.
+            </div>
+            <div class="step-flow fragment fade-in" data-fragment-index="0" style="margin:0;">
+                <div class="step-item step-1" style="padding:14px 12px;">
+                    <div class="step-icon">🪪</div>
+                    <div class="step-title">Rileva profilo</div>
+                    <div class="step-sub">developer /<br>non-developer</div>
+                </div>
+                <div class="step-item step-2" style="padding:14px 12px;">
+                    <div class="step-icon">🗺️</div>
+                    <div class="step-title">Costruisce path</div>
+                    <div class="step-sub">5 step<br>per profilo</div>
+                </div>
+                <div class="step-item step-3" style="padding:14px 12px;">
+                    <div class="step-icon">🔍</div>
+                    <div class="step-title">Cross-domain</div>
+                    <div class="step-sub">codice + doc<br>+ prassi</div>
+                </div>
+                <div class="step-item step-4" style="padding:14px 12px;">
+                    <div class="step-icon">💬</div>
+                    <div class="step-title">Risponde</div>
+                    <div class="step-sub">contestuale<br>+ citato</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arch-box fragment fade-right" data-fragment-index="0">
+            <div class="arch-layer hl">
+                <div class="arch-icon red-ico">🪪</div>
+                <div class="arch-text">
+                    <strong>ProfileDetector</strong>
+                    <span>"Sono uno sviluppatore Python" → developer · confidenza 1.00</span>
+                </div>
+            </div>
+            <div class="arch-layer gold-hl">
+                <div class="arch-icon">🗺️</div>
+                <div class="arch-text">
+                    <strong>PathBuilder</strong>
+                    <span>dev_01 Architettura → dev_02 Setup → dev_03 Auth → ...</span>
+                </div>
+            </div>
+            <div class="arch-layer">
+                <div class="arch-icon">💾</div>
+                <div class="arch-text">
+                    <strong>SessionManager</strong>
+                    <span>Persistenza JSON · progresso · storico · feedback</span>
+                </div>
+            </div>
+            <div class="arch-layer hl">
+                <div class="arch-icon green-ico">🎯</div>
+                <div class="arch-text">
+                    <strong>MentorOrchestrator</strong>
+                    <span>Rerank cross-domain: mentor +0.15 · doc +0.05 · code +0.0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 8 — KPI E PERFORMANCE
+     ================================================================ -->
+<section>
+<div class="slide slide-light">
+    <div class="slide-header">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-light">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-light">08 &nbsp;— &nbsp;KPI e Performance</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px; flex:1;">
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <div class="title-md" style="color:var(--dark);">
+                Qualita' di retrieval<br><span class="accent-red">misurabile</span>
+            </div>
+            <div class="body-text">
+                Framework di benchmark integrato con metriche Hit@k, MRR e NDCG.
+                I test KPI si eseguono automaticamente sui tuoi dati indicizzati.
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="num-card fragment fade-up" data-fragment-index="0">
+                    <div class="num-val">&gt;85%</div>
+                    <div class="num-lbl">Hit@5 - Codice<br>soglia target</div>
+                </div>
+                <div class="num-card fragment fade-up" data-fragment-index="0">
+                    <div class="num-val">&gt;80%</div>
+                    <div class="num-lbl">Hit@5 - Documenti<br>soglia target</div>
+                </div>
+                <div class="num-card fragment fade-up" data-fragment-index="1">
+                    <div class="num-val">&gt;0.70</div>
+                    <div class="num-lbl">MRR - Codice<br>Mean Reciprocal Rank</div>
+                </div>
+                <div class="num-card fragment fade-up" data-fragment-index="1">
+                    <div class="num-val">&lt;300ms</div>
+                    <div class="num-lbl">Latenza P50<br>inferenza locale</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div class="feat-card fragment fade-up" data-fragment-index="0">
+                <div class="ico">🔁</div>
+                <h4>Escalation policy</h4>
+                <p>Se la confidenza locale e' sotto soglia o la query e' troppo complessa, scala automaticamente all'API Claude. Completamente configurabile via <code>ESCALATION_THRESHOLD</code>.</p>
+            </div>
+            <div class="feat-card fragment fade-up" data-fragment-index="1" style="border-left-color:var(--ochre);">
+                <div class="ico">🔑</div>
+                <h4>Keyword boost</h4>
+                <p>Il retriever aggiunge +0.1 per termine trovato (cap a +0.3) sopra al punteggio semantico. Migliora il recall per identificatori esatti come nomi di funzione o codici di errore.</p>
+            </div>
+            <div class="feat-card fragment fade-up" data-fragment-index="2" style="border-left-color:var(--green-ok);">
+                <div class="ico">🧪</div>
+                <h4>59 test automatizzati</h4>
+                <p>54 test unitari che coprono formato chunk, parser, metriche, escalation e tutti i componenti Mentor. 5 test KPI di integrazione si attivano quando lo store e' popolato.</p>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 9 — QUICKSTART
+     ================================================================ -->
+<section>
+<div class="slide slide-dark" style="position:relative;">
+    <div class="bg-deco">
+        <svg width="100%" height="100%" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;">
+            <circle cx="1200" cy="100" r="250" stroke="#48A8FF" stroke-width="1" fill="none" opacity="0.05"/>
+        </svg>
+    </div>
+
+    <div class="slide-header" style="position:relative;z-index:2;">
+        <div class="vl-mark">
+            <div class="vl-box">VL</div>
+            <span class="vl-name vl-name-dark">IntelligenceSuite</span>
+        </div>
+        <div class="slide-eyebrow ey-dark">09 &nbsp;— &nbsp;Quickstart</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; flex:1; position:relative;z-index:2;">
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div style="font-size:22px; font-weight:900; color:white; margin-bottom:4px;">
+                Operativo in <span class="accent-gold">5 minuti</span>
+            </div>
+            <div class="code-block">
+<span class="cm"># 1. Installa</span><br>
+<span class="pmt">$</span> git clone github.com/ViciusLio/IntelligenceSuite<br>
+<span class="pmt">$</span> pip install -e <span class="str">".[dev,pdf,docx,xlsx]"</span><br>
+<span class="pmt">$</span> cp .env.example .env<br><br>
+<span class="cm"># 2. Indicizza il codebase</span><br>
+<span class="pmt">$</span> python -m CodeIntelligence.parse_repo ./src<br>
+<span class="pmt">$</span> python -m CodeIntelligence.embed_chunks<br><br>
+<span class="cm"># 3. Avvia il server</span><br>
+<span class="pmt">$</span> python -m CodeIntelligence.rag_server<br>
+<span class="out">▶  In ascolto su http://localhost:8080 ✓</span>
+            </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:14px;">
+            <div style="font-size:22px; font-weight:900; color:white; margin-bottom:4px;">
+                Interroga la <span class="accent-gold">REST API</span>
+            </div>
+            <div class="code-block">
+<span class="cm"># Domanda sul codice</span><br>
+<span class="pmt">$</span> curl -X POST localhost:8080/api/v1/query \<br>
+&nbsp;&nbsp;-H <span class="str">"Content-Type: application/json"</span> \<br>
+&nbsp;&nbsp;-d '<span class="str">{"question":"Dove e gestita l auth?"}</span>'<br><br>
+<span class="cm"># Domanda sui documenti</span><br>
+<span class="pmt">$</span> python -m DocIntelligence.ingest_docs ./docs<br>
+<span class="pmt">$</span> python -m DocIntelligence.embed_docs<br>
+<span class="pmt">$</span> python -m DocIntelligence.doc_server<br><br>
+<span class="cm"># Sessione di onboarding</span><br>
+<span class="pmt">$</span> python -m MentorIntelligence.mentor_server<br>
+<span class="out">▶  Tutti i sistemi attivi ✓<span class="cursor"></span></span>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+<!-- ================================================================
+     SLIDE 10 — CHIUSURA
+     ================================================================ -->
+<section>
+<div class="slide slide-dark" style="position:relative; justify-content:center; align-items:center; text-align:center;">
+    <div class="bg-deco">
+        <svg width="100%" height="100%" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg"
+             style="position:absolute;top:0;left:0;">
+            <circle cx="640" cy="360" r="260" stroke="#1A7EE0" stroke-width="1" fill="none" opacity="0.07"/>
+            <circle cx="640" cy="360" r="400" stroke="#F5B200" stroke-width="1" fill="none" opacity="0.04"/>
+            <circle cx="640" cy="360" r="540" stroke="#48A8FF" stroke-width="1" fill="none" opacity="0.025"/>
+            <circle cx="100" cy="100" r="180" stroke="#48A8FF" stroke-width="1" fill="none" opacity="0.04"/>
+            <circle cx="1180" cy="620" r="200" stroke="#F5B200" stroke-width="1" fill="none" opacity="0.04"/>
+        </svg>
+    </div>
+
+    <div style="position:relative;z-index:2; display:flex; flex-direction:column; align-items:center; gap:22px;">
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--ochre);">
+            Open Source · Licenza MIT
+        </div>
+        <div style="font-size:58px; font-weight:900; line-height:1.05;">
+            <span class="accent-gold">Intelligence</span>Suite
+        </div>
+        <div style="font-size:18px; opacity:0.6; max-width:520px; line-height:1.6;">
+            La conoscenza aziendale a portata di mano.<br>On-premise. Senza cloud obbligatorio.
+        </div>
+        <div style="display:flex; gap:12px; margin-top:8px; flex-wrap:wrap; justify-content:center;">
+            <span class="badge-dark">github.com/ViciusLio/IntelligenceSuite</span>
+            <span class="badge-gold">v0.1.0</span>
+        </div>
+        <div class="vl-mark" style="margin-top:16px;">
+            <div class="s1-avatar">VL</div>
+            <div style="text-align:left;">
+                <span class="s1-author-name" style="color:white;">Vincenzo Lio</span>
+                <span class="s1-author-role" style="display:block; font-size:12px; opacity:0.5;">Data &amp; AI Engineer &nbsp;·&nbsp; Technical Expert &amp; Automation</span>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    transition: 'slide',
+    transitionSpeed: 'default',
+    backgroundTransition: 'fade',
+    controls: true,
+    progress: true,
+    center: false,
+    width: 1280,
+    height: 720,
+    margin: 0,
+    minScale: 0.2,
+    maxScale: 2.0,
+});
+</script>
+</body>
+</html>
