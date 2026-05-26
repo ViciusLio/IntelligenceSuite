@@ -10,6 +10,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.8] — 2026-05-26
+
+### Fixed
+- `intelligence_ui` package was missing from `[tool.setuptools.packages.find]` include list —
+  caused `ModuleNotFoundError: No module named 'intelligence_ui'` when opening the chat UI.
+
+---
+
 ## [0.1.7] — 2026-05-26
 
 ### Fixed

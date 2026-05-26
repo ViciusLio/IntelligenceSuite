@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligence-suite"
-version = "0.1.7"
+version = "0.1.8"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
 license = "MIT"
@@ -70,7 +70,7 @@ Author     = "https://www.linkedin.com/in/vincenzo-lio-dataengineer/"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["intelligence_core*", "CodeIntelligence*", "DocIntelligence*", "MentorIntelligence*"]
+include = ["intelligence_core*", "CodeIntelligence*", "DocIntelligence*", "MentorIntelligence*", "intelligence_ui*"]
 
 [tool.ruff]
 line-length = 100
