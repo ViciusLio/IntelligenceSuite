@@ -290,19 +290,10 @@ const COLORS = {
 };
 
 // ── Render the action area for a card ─────────────────────────────────────
-function renderActions(key, running, loading) {
+function renderActions(key, running) {
   const el   = document.getElementById('actions-' + key);
   const port = PORTS[key];
   if (!el) return;
-
-  if (loading) {
-    el.innerHTML = `
-      <button disabled
-              class="btn w-full bg-gray-700 text-gray-400 text-sm py-2.5 rounded-xl font-medium cursor-wait">
-        Avvio in corso…
-      </button>`;
-    return;
-  }
 
   if (running) {
     // Online: big Open + small Stop
@@ -349,13 +340,13 @@ async function poll() {
         label.textContent = '● online';
         label.className   = 'text-xs text-green-400';
         chnk.textContent  = s.chunks + ' chunks indexed';
-        if (!busy) renderActions(key, true, false);
+        if (!busy) renderActions(key, true);
       } else {
         dot.className     = 'w-2 h-2 rounded-full bg-gray-600';
         label.textContent = '○ offline';
         label.className   = 'text-xs text-gray-500';
         chnk.textContent  = '— chunks indexed';
-        if (!busy) renderActions(key, false, false);
+        if (!busy) renderActions(key, false);
         allOk = false;
       }
     }
@@ -366,54 +357,18 @@ async function poll() {
   }
 }
 
-// ── Launch: start server + open browser when ready ────────────────────────
-async function launchModule(key) {
-  renderActions(key, false, true);   // show spinner
-
-  // Call start API
-  try {
-    const res  = await fetch('/api/start/' + key, { method:'POST' });
-    const data = await res.json();
-    if (data.status === 'error') {
-      document.getElementById('footer-status').textContent =
-        '⚠ ' + key + ': ' + (data.detail || 'errore sconosciuto');
-      renderActions(key, false, false);
-      return;
-    }
-  } catch(e) {
-    document.getElementById('footer-status').textContent = 'API error: ' + e.message;
-    renderActions(key, false, false);
-    return;
-  }
-
-  // Poll until online (max 20s), then open browser
-  for (let i = 0; i < 20; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    try {
-      const st = await (await fetch('/api/status')).json();
-      if (st[key] && st[key].running) {
-        renderActions(key, true, false);
-        // Update dot/label immediately
-        document.getElementById('dot-'    + key).className   = 'w-2 h-2 rounded-full bg-green-400';
-        document.getElementById('label-'  + key).textContent = '● online';
-        document.getElementById('label-'  + key).className   = 'text-xs text-green-400';
-        document.getElementById('chunks-' + key).textContent = st[key].chunks + ' chunks indexed';
-        // Open browser
-        window.open('http://localhost:' + PORTS[key], '_blank');
-        return;
-      }
-    } catch {}
-  }
-  // Timeout
-  renderActions(key, false, false);
-  document.getElementById('footer-status').textContent =
-    '⚠ ' + key + ': timeout — il server non risponde. Prova ad aprirlo manualmente.';
+// ── Launch: apre il browser subito, avvia il server in background se offline ──
+function launchModule(key) {
+  // Apre immediatamente — esattamente come faceva "Open →"
+  window.open('http://localhost:' + PORTS[key], '_blank');
+  // Tenta di avviare il server in background (fire-and-forget, non blocca)
+  fetch('/api/start/' + key, { method:'POST' }).catch(() => {});
 }
 
 // ── Stop ──────────────────────────────────────────────────────────────────
 async function stopModule(key) {
   await fetch('/api/stop/' + key, { method:'POST' });
-  renderActions(key, false, false);
+  renderActions(key, false);
   document.getElementById('dot-'   + key).className   = 'w-2 h-2 rounded-full bg-gray-600';
   document.getElementById('label-' + key).textContent = '○ offline';
   document.getElementById('label-' + key).className   = 'text-xs text-gray-500';

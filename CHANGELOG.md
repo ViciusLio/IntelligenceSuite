@@ -10,6 +10,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.11] — 2026-05-26
+
+### Fixed
+- Launcher **▶ Avvia** button hung indefinitely waiting for the subprocess to
+  come online. Simplified to: open the browser immediately (same as the old
+  Open → button) and attempt server start fire-and-forget in background.
+  No waiting, no blocking — click → browser opens instantly.
+
+---
+
 ## [0.2.10] — 2026-05-26
 
 ### Changed
