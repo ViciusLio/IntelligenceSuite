@@ -57,7 +57,7 @@ def _build_sources(filtered: list) -> list[dict]:
 
 async def _async_stream(llm, question: str, context: str):
     """Bridge a sync LLM stream() generator into an async generator."""
-    loop  = asyncio.get_event_loop()
+    loop  = asyncio.get_running_loop()
     queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     def _producer():

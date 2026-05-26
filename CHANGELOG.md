@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.7] — 2026-05-26
+
+### Fixed
+- `asyncio.get_event_loop()` → `asyncio.get_running_loop()` in `_async_stream()`
+  (deprecation warning in Python 3.10+)
+
+### Docs
+- README Quick Start updated: chat UI accessible at http://localhost:808x immediately
+  after `ci-serve` / `di-serve` / `mi-serve` — no extra command needed
+
+---
+
 ## [0.1.6] — 2026-05-26
 
 ### Added

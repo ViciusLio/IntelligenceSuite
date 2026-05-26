@@ -37,10 +37,20 @@ pip install intelligence-suite
 
 ci-parse /path/to/your/repo       # parse → chunks.jsonl
 ci-embed                           # embed → ChromaDB (local, no server needed)
-ci-serve                           # REST API → http://localhost:8080
+ci-serve                           # REST API + Chat UI → http://localhost:8080
 ```
 
-### Ask a question
+### Chat UI — open your browser
+
+Once the server is running, open **http://localhost:8080** — the chat interface loads instantly, no extra commands needed.
+
+- Responses **stream word by word** in real-time (SSE)
+- Left sidebar with **numbered, clickable conversation history**
+- **Source citations** as chips below each answer (file · type · score)
+- Server status, chunk count, LLM backend displayed live
+- Zero extra dependencies — served directly from the RAG server
+
+### Or query via REST API
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/query \
