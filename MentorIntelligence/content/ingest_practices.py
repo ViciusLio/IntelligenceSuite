@@ -95,18 +95,66 @@ def _parse_text_practice(file: Path, root: Path) -> list[dict]:
     if len(text) < 30:
         return []
 
-    heading    = stem.replace("_", " ").replace("-", " ").title()
-    chunk_text = (
-        f"Practice: {heading} (from {file.name})\n"
-        f"Category: general\n"
-        f"---\n{text[:3000]}"
-    )
-    return [make_chunk(
-        domain="mentor", type_="practice",
-        locator=f"practice.{_sanitize(stem)}",
-        text=chunk_text, source=rel, language="markdown",
-        metadata={"category": "general", "priority": "normal", "audience": ["all"]},
-    )]
+    # Extract H1 as document-level title for context
+    doc_title = stem.replace("_", " ").replace("-", " ").title()
+    for line in text.splitlines():
+        if line.startswith("# ") and not line.startswith("## "):
+            doc_title = line[2:].strip()
+            break
+
+    # Split by H2 headings → one chunk per section
+    sections = _split_by_h2(text, doc_title)
+
+    chunks = []
+    for section_title, section_body in sections:
+        chunk_text = (
+            f"Practice: {doc_title} — {section_title} (from {file.name})\n"
+            f"Category: general\n"
+            f"---\n{section_body.strip()[:4000]}"
+        )
+        chunks.append(make_chunk(
+            domain="mentor", type_="practice",
+            locator=f"practice.{_sanitize(stem)}.{_sanitize(section_title)}",
+            text=chunk_text, source=rel, language="markdown",
+            metadata={
+                "category": "general", "priority": "normal", "audience": ["all"],
+                "parent_title": doc_title, "section": section_title,
+            },
+        ))
+    return chunks
+
+
+def _split_by_h2(text: str, doc_title: str) -> list[tuple[str, str]]:
+    """Split markdown by H2 headings. Returns [(section_title, body), ...]."""
+    lines = text.splitlines()
+    sections: list[tuple[str, str]] = []
+    current_title = doc_title          # content before first H2 → intro section
+    current_body: list[str] = []
+
+    for line in lines:
+        if line.startswith("# ") and not line.startswith("## "):
+            # H1 = document title, skip (already captured above)
+            continue
+        if line.startswith("## "):
+            # Flush previous section
+            body = "\n".join(current_body).strip()
+            if len(body) >= 20:
+                sections.append((current_title, body))
+            current_title = line[3:].strip()
+            current_body = []
+        else:
+            current_body.append(line)
+
+    # Last section
+    body = "\n".join(current_body).strip()
+    if len(body) >= 20:
+        sections.append((current_title, body))
+
+    # Fallback: whole file as one chunk if no H2 found
+    if not sections:
+        sections = [(doc_title, text[:4000])]
+
+    return sections
 
 
 def _parse_yaml_practice(file: Path, root: Path) -> list[dict]:

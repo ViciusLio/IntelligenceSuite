@@ -17,6 +17,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   installed wheel because setuptools does not include non-Python files by
   default. Added `[tool.setuptools.package-data]` to `pyproject.toml` so
   `MentorIntelligence/content/*.json` is now bundled in the wheel.
+- `mi-ingest` was producing **1 chunk per file** (whole file truncated at
+  3000 chars). `_parse_text_practice` now splits each Markdown file by `##`
+  headings — **one chunk per section** — producing ~30 chunks from the four
+  bundled guides instead of 4. Better granularity → better retrieval.
+
+### Changed
+- `README.md` — MentorIntelligence section updated with bundled `practices/`
+  table and explanation of per-section chunking.
 
 ---
 

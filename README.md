@@ -432,8 +432,8 @@ codebase and company documents via cross-domain retrieval.
 ### CLI quickstart
 
 ```bash
-# (Optional) ingest best practices
-mkdir practices && echo "# Git conventions\n..." > practices/git.md
+# Ingest your team's best practices (Markdown / TXT / YAML)
+# The repo ships with a ready-to-use practices/ folder for IntelligenceSuite itself:
 mi-ingest ./practices
 
 # Start the mentor server (default: http://localhost:8082)
@@ -449,6 +449,21 @@ curl -X POST http://localhost:8082/api/v1/mentor/ask \
   -H "Content-Type: application/json" \
   -d '{"session_id": "...", "question": "How does authentication work in this codebase?"}'
 ```
+
+### Bundled `practices/` folder
+
+The repository ships with four ready-to-use Markdown guides covering IntelligenceSuite
+itself — ideal for teams adopting the suite:
+
+| File | Content |
+|---|---|
+| `01_onboarding_nuovo_developer.md` | Day-by-day setup, first indexing, team conventions |
+| `02_come_usare_code_intelligence.md` | CI pipeline, CLI commands, API, troubleshooting |
+| `03_come_usare_doc_intelligence.md` | DI supported formats, pipeline, confidence notes |
+| `04_come_usare_mentor_intelligence.md` | MI onboarding flow, profile detection, REST API |
+
+Each file is split by `##` headings at ingest time — **one chunk per section** — for
+precise retrieval. Running `mi-ingest ./practices` produces ~30 chunks.
 
 ---
 
