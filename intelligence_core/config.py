@@ -80,9 +80,10 @@ class Settings(BaseSettings):
     mi_llm_api_key:  str = ""
 
     # ── Server ports (one per module, avoids conflicts when running together) ──
-    ci_port: int = 8080   # CodeIntelligence
-    di_port: int = 8081   # DocIntelligence
-    mi_port: int = 8082   # MentorIntelligence
+    ci_port:       int = 8080   # CodeIntelligence
+    di_port:       int = 8081   # DocIntelligence
+    mi_port:       int = 8082   # MentorIntelligence
+    launcher_port: int = 8079   # Launcher dashboard
 
     # ── Shared server settings ─────────────────────────────────────────────────
     api_host:  str = "0.0.0.0"

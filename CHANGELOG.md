@@ -10,6 +10,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.8] — 2026-05-26
+
+### Added
+- **`is-launch`** — new Launcher dashboard on port 8079 (`intelligence_ui/launcher.py`)
+  - Single-page dashboard showing live status of all three modules (green/red dot, chunks count)
+  - **Start / Stop** buttons per module — spawns `ci-serve`/`di-serve`/`mi-serve` as
+    background subprocesses so you never need to open three separate terminals
+  - **Start All** button in the header starts all three at once
+  - Auto-polls `/health` every 4 seconds for live status
+  - Direct **Open →** links to each module's chat UI
+- **Multi-conversation sidebar** in the chat UI (`intelligence_ui/templates.py`)
+  - **New Chat** button creates a fresh conversation (previous ones stay in the list)
+  - Conversation history persisted to `localStorage` per module — survives page refreshes
+  - Conversations grouped by date: Today / Yesterday / This week / Older
+  - Click any conversation to restore full Q&A history
+  - Hover ✕ button to delete individual conversations
+  - Active conversation highlighted with left border accent
+- `launcher_port: int = 8079` added to `intelligence_core/config.py`
+- `LAUNCHER_PORT` documented in `.env.example`
+
+---
+
 ## [0.2.7] — 2026-05-26
 
 ### Fixed
