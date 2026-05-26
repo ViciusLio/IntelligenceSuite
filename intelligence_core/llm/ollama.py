@@ -10,6 +10,15 @@ from intelligence_core.llm.protocol import SYSTEM_PROMPT_DEFAULT
 logger = logging.getLogger(__name__)
 
 
+def _ollama_timeout() -> float:
+    """Read OLLAMA_TIMEOUT from settings (default 300s). Lazy import to avoid cycles."""
+    try:
+        from intelligence_core.config import settings
+        return settings.ollama_timeout
+    except Exception:
+        return 300.0
+
+
 class OllamaProvider:
     """
     Calls Ollama /api/chat endpoint.
@@ -22,6 +31,7 @@ class OllamaProvider:
         LLM_BACKEND=ollama
         OLLAMA_BASE_URL=http://localhost:11434
         OLLAMA_MODEL=qwen2.5-coder:7b
+        OLLAMA_TIMEOUT=300        # seconds — increase for slow CPU / long answers
     """
 
     backend_name = "ollama"
@@ -45,6 +55,7 @@ class OllamaProvider:
     ) -> str:
         system = system_prompt or SYSTEM_PROMPT_DEFAULT
         user_msg = f"Context:\n{context}\n\nQuestion: {question}"
+        timeout = _ollama_timeout()
         try:
             resp = httpx.post(
                 f"{self.base_url}/api/chat",
@@ -60,7 +71,7 @@ class OllamaProvider:
                         {"role": "user",   "content": user_msg},
                     ],
                 },
-                timeout=120.0,
+                timeout=timeout,
             )
             resp.raise_for_status()
             return resp.json()["message"]["content"].strip()
@@ -84,6 +95,7 @@ class OllamaProvider:
         import json as _json
         system  = system_prompt or SYSTEM_PROMPT_DEFAULT
         user_msg = f"Context:\n{context}\n\nQuestion: {question}"
+        timeout = _ollama_timeout()
         try:
             with httpx.stream(
                 "POST",
@@ -97,7 +109,7 @@ class OllamaProvider:
                         {"role": "user",   "content": user_msg},
                     ],
                 },
-                timeout=120.0,
+                timeout=timeout,
             ) as r:
                 r.raise_for_status()
                 for line in r.iter_lines():

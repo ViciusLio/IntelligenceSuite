@@ -10,6 +10,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.7] — 2026-05-26
+
+### Fixed
+- Ollama LLM timeout was hardcoded to 120 s — complex questions on slow CPUs
+  would return `[LLM error: timed out]` even though retrieval succeeded.
+  Default raised to **300 s** and made configurable via `OLLAMA_TIMEOUT` in `.env`.
+
+### Added
+- `ollama_timeout: float = 300.0` in `intelligence_core/config.py`
+- `OLLAMA_TIMEOUT=300` documented in `.env.example`
+
+---
+
 ## [0.2.6] — 2026-05-26
 
 ### Changed
