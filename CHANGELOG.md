@@ -10,6 +10,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.2] — 2026-05-26
+
+### Docs
+- README fully updated for v0.2.x: all `.chroma/` references replaced with
+  `~/.intelligence_suite/chroma`, "run from same directory" warnings removed,
+  Ollama troubleshooting updated to reflect RuntimeError (no longer zero-vector),
+  roadmap version table corrected, design principles table extended.
+
+---
+
 ## [0.2.1] — 2026-05-26
 
 ### Fixed
