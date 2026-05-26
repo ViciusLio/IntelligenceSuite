@@ -296,7 +296,7 @@ function renderActions(key, running) {
   if (!el) return;
 
   if (running) {
-    // Online: Avvia (apre) + piccolo Stop
+    // Online: apri UI + piccolo Stop
     el.innerHTML = `
       <div class="flex gap-2">
         <a href="http://localhost:${port}" target="_blank"
@@ -311,14 +311,20 @@ function renderActions(key, running) {
         </button>
       </div>`;
   } else {
-    // Offline: stesso bottone, colore grigio
+    // Offline: avvia server fire-and-forget + apri browser subito
     el.innerHTML = `
-      <a href="http://localhost:${port}" target="_blank"
-         class="btn block w-full text-center bg-gray-700 hover:bg-gray-600 text-sm
-                py-2.5 rounded-xl font-semibold">
+      <button onclick="launchModule('${key}')"
+              class="btn block w-full text-center bg-gray-700 hover:bg-gray-600 text-sm
+                     py-2.5 rounded-xl font-semibold">
         ▶ Avvia
-      </a>`;
+      </button>`;
   }
+}
+
+// ── Launch singolo modulo ─────────────────────────────────────────────────
+function launchModule(key) {
+  fetch('/api/start/' + key, { method: 'POST' }).catch(() => {});
+  window.open('http://localhost:' + PORTS[key], '_blank');
 }
 
 // ── Poll /api/status and update all cards ──────────────────────────────────

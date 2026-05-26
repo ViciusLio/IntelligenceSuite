@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.13] — 2026-05-26
+
+### Fixed
+- Launcher **▶ Avvia** (offline state) now starts the server fire-and-forget via
+  `POST /api/start/{key}` **and** immediately opens the browser in a new tab.
+  No waiting, no spinner — browser opens instantly, page loads automatically
+  once the server is ready (a few seconds). Previously the offline button was a
+  plain `<a href>` that only opened the browser without starting the server,
+  causing "connection refused" every time.
+
+---
+
 ## [0.2.12] — 2026-05-26
 
 ### Fixed
