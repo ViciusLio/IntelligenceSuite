@@ -369,8 +369,10 @@ async function stopModule(key) {
 }
 
 // ── Launch All ────────────────────────────────────────────────────────────
-async function launchAll() {
-  for (const key of ['code','doc','mentor']) launchModule(key);
+function launchAll() {
+  for (const [key, port] of Object.entries(PORTS)) {
+    window.open('http://localhost:' + port, '_blank');
+  }
 }
 
 // Boot

@@ -10,6 +10,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.12] — 2026-05-26
+
+### Fixed
+- Launcher **▶ Avvia tutto** (header button) was calling the removed `launchModule()`
+  function and throwing a `ReferenceError` in the browser console. Fixed to use
+  `window.open()` directly — now opens all three module UIs in new tabs instantly,
+  consistent with the per-card **▶ Avvia** buttons.
+
+---
+
 ## [0.2.11] — 2026-05-26
 
 ### Fixed
