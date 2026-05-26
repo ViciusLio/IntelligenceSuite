@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import logging
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -71,25 +72,51 @@ def _health_url(port: int) -> str:
     return f"http://localhost:{port}/health"
 
 
+def _resolve_cmd(cli: str, module: str) -> list[str]:
+    """Find the best command to launch a module server.
+
+    Priority:
+      1. shutil.which — honours current PATH (conda activate, venv, etc.)
+      2. Scripts/ sibling of sys.executable — works when launcher runs inside
+         the same venv/conda env as the installed CLI scripts
+      3. python -m <module> — universal fallback
+    """
+    # 1. PATH lookup
+    found = shutil.which(cli)
+    if found:
+        return [found]
+
+    # 2. Same Scripts/ dir as the running Python
+    scripts_dir = Path(sys.executable).parent
+    for suffix in ("", ".exe", ".cmd", ".bat"):
+        candidate = scripts_dir / (cli + suffix)
+        if candidate.exists():
+            return [str(candidate)]
+
+    # 3. python -m fallback
+    logger.warning("CLI %s not found — falling back to python -m %s", cli, module)
+    return [sys.executable, "-m", module]
+
+
 def _start(key: str) -> dict:
     mod = MODULES[key]
     if _alive(key):
         return {"status": "already_running"}
 
-    # Try CLI command first, then python -m fallback
-    for cmd in ([mod["cli"]], [sys.executable, "-m", mod["module"]]):
-        try:
-            p = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                cwd=str(Path.cwd()),
-            )
-            _procs[key] = p
-            return {"status": "starting", "pid": p.pid, "port": mod["port"]}
-        except FileNotFoundError:
-            continue
-    return {"status": "error", "detail": f"Cannot find {mod['cli']} or {mod['module']}"}
+    cmd = _resolve_cmd(mod["cli"], mod["module"])
+    logger.info("Starting %s with: %s", key, cmd)
+    try:
+        p = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=str(Path.cwd()),
+        )
+        _procs[key] = p
+        return {"status": "starting", "pid": p.pid, "port": mod["port"], "cmd": str(cmd[0])}
+    except Exception as exc:
+        logger.error("Failed to start %s: %s", key, exc)
+        return {"status": "error", "detail": str(exc), "cmd": str(cmd)}
 
 
 def _stop(key: str) -> dict:
@@ -288,71 +315,102 @@ _LAUNCHER_HTML = """\
 </footer>
 
 <script>
-const MODULES = ['code', 'doc', 'mentor'];
-const COLORS  = { code:'bg-green-400', doc:'bg-green-400', mentor:'bg-green-400' };
+// Per-module Stop button colors
+const BTN_START = {
+  code:   'btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-sm py-2 rounded-lg font-medium',
+  doc:    'btn flex-1 bg-cyan-700   hover:bg-cyan-600   text-sm py-2 rounded-lg font-medium',
+  mentor: 'btn flex-1 bg-pink-700  hover:bg-pink-600   text-sm py-2 rounded-lg font-medium',
+};
+const BTN_STOP = 'btn flex-1 bg-gray-700 hover:bg-red-800 text-sm py-2 rounded-lg font-medium';
 
 async function poll() {
   try {
     const res  = await fetch('/api/status');
     const data = await res.json();
-    let allOk = true;
+    let allOk  = true;
+
     for (const [key, s] of Object.entries(data)) {
-      const dot   = document.getElementById('dot-' + key);
-      const label = document.getElementById('label-' + key);
-      const btn   = document.getElementById('btn-' + key);
+      const dot   = document.getElementById('dot-'    + key);
+      const label = document.getElementById('label-'  + key);
+      const btn   = document.getElementById('btn-'    + key);
       const chnk  = document.getElementById('chunks-' + key);
 
+      if (!dot || btn.disabled) continue;   // skip if mid-toggle
+
       if (s.running) {
-        dot.className   = 'w-2 h-2 rounded-full bg-green-400';
+        dot.className     = 'w-2 h-2 rounded-full bg-green-400';
         label.textContent = '● online';
         label.className   = 'text-xs text-green-400';
         btn.textContent   = 'Stop';
-        btn.className     = btn.className.replace(/bg-\\w+-700 hover:bg-\\w+-600/,
-          'bg-gray-700 hover:bg-gray-600');
+        btn.className     = BTN_STOP;
         chnk.textContent  = s.chunks + ' chunks indexed';
       } else {
         dot.className     = 'w-2 h-2 rounded-full bg-gray-600';
         label.textContent = '○ offline';
         label.className   = 'text-xs text-gray-500';
-        const colors = { code:'bg-indigo-700 hover:bg-indigo-600',
-                         doc:'bg-cyan-700 hover:bg-cyan-600',
-                         mentor:'bg-pink-700 hover:bg-pink-600' };
-        btn.textContent = 'Start';
-        btn.className   = 'btn flex-1 ' + colors[key] + ' text-sm py-2 rounded-lg font-medium';
-        chnk.textContent = '— chunks indexed';
+        btn.textContent   = 'Start';
+        btn.className     = BTN_START[key];
+        chnk.textContent  = '— chunks indexed';
         allOk = false;
       }
     }
     document.getElementById('footer-status').textContent =
-      allOk ? 'All modules online' : 'Some modules offline';
+      allOk ? 'All modules online ✓' : 'Some modules offline';
   } catch(e) {
     document.getElementById('footer-status').textContent = 'Launcher error: ' + e.message;
   }
 }
 
 async function toggle(key) {
-  const btn = document.getElementById('btn-' + key);
+  const btn      = document.getElementById('btn-' + key);
   const starting = btn.textContent.trim() === 'Start';
-  btn.disabled = true;
+  btn.disabled   = true;
   btn.textContent = starting ? 'Starting…' : 'Stopping…';
-  await fetch('/api/' + (starting ? 'start' : 'stop') + '/' + key, { method: 'POST' });
-  // Poll a few times quickly to reflect new state
-  for (let i = 0; i < 6; i++) {
-    await new Promise(r => setTimeout(r, 800));
+
+  try {
+    const res  = await fetch('/api/' + (starting ? 'start' : 'stop') + '/' + key,
+                             { method: 'POST' });
+    const data = await res.json();
+
+    if (data.status === 'error') {
+      // Show error in footer and re-enable button immediately
+      document.getElementById('footer-status').textContent =
+        '⚠ ' + key + ': ' + (data.detail || 'unknown error');
+      btn.textContent = 'Start';
+      btn.className   = BTN_START[key];
+      btn.disabled    = false;
+      return;
+    }
+  } catch(e) {
+    document.getElementById('footer-status').textContent = 'API error: ' + e.message;
+    btn.disabled = false;
+    return;
+  }
+
+  // Poll for up to ~12s to catch the new state
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 1000));
     await poll();
   }
   btn.disabled = false;
 }
 
 async function startAll() {
-  await fetch('/api/start-all', { method: 'POST' });
-  for (let i = 0; i < 8; i++) {
-    await new Promise(r => setTimeout(r, 700));
+  const res  = await fetch('/api/start-all', { method: 'POST' });
+  const data = await res.json();
+  // Show any errors in footer
+  const errors = Object.entries(data).filter(([,v]) => v.status === 'error');
+  if (errors.length) {
+    document.getElementById('footer-status').textContent =
+      '⚠ Errors: ' + errors.map(([k,v]) => k + ': ' + v.detail).join(' | ');
+  }
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 1000));
     await poll();
   }
 }
 
-// Initial + recurring poll
+// Boot
 poll();
 setInterval(poll, 4000);
 </script>
