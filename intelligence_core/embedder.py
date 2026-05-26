@@ -68,11 +68,13 @@ class SentenceTransformerEmbedder:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(_model_name)
             logger.info("SentenceTransformerEmbedder: loaded model '%s'", _model_name)
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
-                "sentence-transformers not installed. "
-                "Run: pip install 'intelligence-suite[st]'"
-            )
+                f"sentence-transformers failed to load: {exc}\n"
+                "If not installed: pip install 'intelligence-suite[st]'\n"
+                "If already installed, check for NumPy/scipy DLL conflicts "
+                "(try: conda install numpy scipy --force-reinstall)"
+            ) from exc
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         return self._model.encode(texts, convert_to_numpy=True).tolist()
