@@ -91,6 +91,12 @@ def run_eval(
         texts   = [r.chunk.get("text",   "") for r in retrieved]
         ef      = q.get("expected_primary_file", "")
         syms    = q.get("expected_symbols", [])
+        # L3-style schema: expected_chunks = [{file, symbol}, ...]
+        if not ef and not syms:
+            chunks_gt = q.get("expected_chunks") or []
+            if chunks_gt:
+                ef   = chunks_gt[0].get("file", "")
+                syms = [c["symbol"] for c in chunks_gt if c.get("symbol")]
 
         rank = _rank_of_hit(sources, texts, ef, syms)
 
