@@ -10,6 +10,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.4] — 2026-05-26
+
+### Docs
+- README: added Jupyter Notebook example section with real output from a test run
+
+---
+
 ## [0.1.3] — 2026-05-26
 
 ### Fixed
