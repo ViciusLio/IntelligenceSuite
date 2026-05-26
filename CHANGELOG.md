@@ -10,6 +10,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.5] — 2026-05-26
+
+### Fixed
+- `mi-serve` crash at startup: `path_templates.json` was missing from the
+  installed wheel because setuptools does not include non-Python files by
+  default. Added `[tool.setuptools.package-data]` to `pyproject.toml` so
+  `MentorIntelligence/content/*.json` is now bundled in the wheel.
+
+---
+
 ## [0.2.4] — 2026-05-26
 
 ### Added
