@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.1] — 2026-05-26
+
+### Fixed
+- **Chat UI send button non-functional** — `onsubmit="submit(event)"` in the inline
+  HTML attribute resolved to `HTMLFormElement.prototype.submit` (the native page-reload
+  method) rather than our JavaScript function, because the form element's own `submit`
+  property shadows `window.submit` in the inline handler scope chain.
+  Fixed by removing the `onsubmit` attribute and wiring up the handler via
+  `addEventListener('submit', ...)` on `DOMContentLoaded`.
+- `useSuggestion()` now calls `sendMessage()` directly instead of dispatching a
+  `submit` event (which had the same conflict).
+- Chat suggestion pills now render on first health-check even when `/health` does not
+  include a `module` field (backward compat with servers older than 0.2.0).
+- `clearAll()` now recreates the `#suggestions` div and re-renders the pills after
+  clearing the conversation.
+
+---
+
 ## [0.2.0] — 2026-05-26
 
 ### Fixed
