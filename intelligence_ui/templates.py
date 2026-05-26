@@ -100,7 +100,7 @@ CHAT_HTML = """<!DOCTYPE html>
 
   <!-- Input -->
   <div class="bg-white border-t px-6 py-4 shadow-sm">
-    <form id="chat-form" onsubmit="submit(event)" class="flex gap-3">
+    <form id="chat-form" class="flex gap-3">
       <input id="q" type="text" autocomplete="off"
              placeholder="Ask anything about your codebase or documents…"
              class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm
@@ -126,9 +126,10 @@ CHAT_HTML = """<!DOCTYPE html>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 const turns   = [];       // {q, a, sources, ms, conf, backend, escalated}
-let streaming = false;
-let activeTurn = null;
+let streaming     = false;
+let activeTurn    = null;
 let _moduleInited = false;
+let _currentModule = 'code';   // set by checkHealth, used by clearAll
 
 // ── Module suggestions ─────────────────────────────────────────────────────
 const SUGGESTIONS = {
@@ -181,11 +182,12 @@ async function checkHealth() {
     set('srv-llm',     d.llm_backend || '—', 'text-xs text-gray-400');
     set('dot',         '',                    'w-2 h-2 rounded-full bg-green-400');
     set('dot-label',   (d.llm_backend||'?') + ' · ' + (d.chunks_indexed||0) + ' chunks', 'text-xs text-green-600');
-    // Set module title + suggestions once
-    if (!_moduleInited && d.module) {
-      const mod = d.module;
-      document.getElementById('module-title').textContent = MODULE_TITLES[mod] || 'Intelligence Chat';
-      renderSuggestions(mod);
+    // Set module title + suggestions once (fallback to 'code' for older servers)
+    if (!_moduleInited) {
+      _currentModule = d.module || 'code';
+      document.getElementById('module-title').textContent =
+        MODULE_TITLES[_currentModule] || 'Intelligence Chat';
+      renderSuggestions(_currentModule);
       _moduleInited = true;
     }
   } catch {
@@ -196,17 +198,25 @@ async function checkHealth() {
 }
 
 // ── Submit ─────────────────────────────────────────────────────────────────
-function submit(e) {
-  e.preventDefault();
-  const q = document.getElementById('q').value.trim();
+// NOTE: we use addEventListener, NOT onsubmit="...", because 'submit' is a
+// reserved method on HTMLFormElement — inline handlers would call form.submit()
+// (page reload) instead of our function.
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('chat-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const q = document.getElementById('q').value.trim();
+    if (!q || streaming) return;
+    document.getElementById('q').value = '';
+    sendMessage(q);
+  });
+});
+
+function useSuggestion(btn) {
+  // Call sendMessage directly — do NOT dispatch a 'submit' event (same conflict)
+  const q = btn.textContent.trim();
   if (!q || streaming) return;
   document.getElementById('q').value = '';
   sendMessage(q);
-}
-
-function useSuggestion(btn) {
-  document.getElementById('q').value = btn.textContent;
-  document.getElementById('chat-form').dispatchEvent(new Event('submit'));
 }
 
 // ── Streaming ──────────────────────────────────────────────────────────────
@@ -357,7 +367,9 @@ function clearAll() {
         IntelligenceSuite retrieves the most relevant chunks and generates a precise,
         source-cited answer — fully on-premise.
       </p>
+      <div class="flex flex-wrap gap-2 justify-center" id="suggestions"></div>
     </div>`;
+  renderSuggestions(_currentModule);   // re-populate pills after clearing
   renderHistory();
   document.getElementById('send').disabled = false;
 }
