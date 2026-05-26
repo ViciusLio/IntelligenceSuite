@@ -33,6 +33,16 @@ class ChromaStore:
         if not valid:
             logger.warning("add(): nessun chunk con embedding valido")
             return
+        # Deduplicate by ID — silently keep first occurrence
+        seen: set[str] = set()
+        deduped = []
+        for c in valid:
+            if c["id"] not in seen:
+                seen.add(c["id"])
+                deduped.append(c)
+        if len(deduped) < len(valid):
+            logger.warning("add(): removed %d duplicate IDs", len(valid) - len(deduped))
+        valid = deduped
         self._col.upsert(
             ids=[c["id"] for c in valid],
             embeddings=[c["embedding"] for c in valid],
