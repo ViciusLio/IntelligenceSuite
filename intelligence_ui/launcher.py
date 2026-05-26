@@ -335,7 +335,7 @@ async function poll() {
       const btn   = document.getElementById('btn-'    + key);
       const chnk  = document.getElementById('chunks-' + key);
 
-      if (!dot || btn.disabled) continue;   // skip if mid-toggle
+      if (!dot) continue;
 
       if (s.running) {
         dot.className     = 'w-2 h-2 rounded-full bg-green-400';
@@ -387,12 +387,39 @@ async function toggle(key) {
     return;
   }
 
-  // Poll for up to ~12s to catch the new state
-  for (let i = 0; i < 12; i++) {
+  // Poll until server is up (or 15s timeout) — break early when detected
+  for (let i = 0; i < 15; i++) {
     await new Promise(r => setTimeout(r, 1000));
-    await poll();
+    try {
+      const st = await (await fetch('/api/status')).json();
+      const s  = st[key];
+      if (starting && s.running) {
+        // Server is up — update UI and stop waiting
+        btn.disabled  = false;
+        btn.textContent = 'Stop';
+        btn.className   = BTN_STOP;
+        document.getElementById('dot-'    + key).className   = 'w-2 h-2 rounded-full bg-green-400';
+        document.getElementById('label-'  + key).textContent = '● online';
+        document.getElementById('label-'  + key).className   = 'text-xs text-green-400';
+        document.getElementById('chunks-' + key).textContent = s.chunks + ' chunks indexed';
+        document.getElementById('footer-status').textContent = 'All modules online ✓';
+        return;
+      }
+      if (!starting && !s.running) {
+        // Server stopped
+        btn.disabled    = false;
+        btn.textContent = 'Start';
+        btn.className   = BTN_START[key];
+        document.getElementById('dot-'   + key).className   = 'w-2 h-2 rounded-full bg-gray-600';
+        document.getElementById('label-' + key).textContent = '○ offline';
+        document.getElementById('label-' + key).className   = 'text-xs text-gray-500';
+        return;
+      }
+    } catch {}
   }
+  // Timeout — re-enable button and let background poll sort it out
   btn.disabled = false;
+  await poll();
 }
 
 async function startAll() {
