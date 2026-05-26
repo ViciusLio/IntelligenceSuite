@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.18] — 2026-05-26
+
+### Added
+- **Conversation memory** — the chat now understands follow-up questions:
+  - Frontend sends the last 6 messages of the current conversation with every request
+  - Backend rewrites short/ambiguous queries into standalone search queries using the LLM
+    (e.g. "qualcosa di più in dettaglio?" → "spiegami in dettaglio il Server RAG di DocIntelligence")
+  - Conversation history is prepended to the retrieval context so the LLM can reference
+    previous turns when generating the answer
+  - Heuristic: queries ≤ 7 words or containing follow-up signals (pronouns, "di più",
+    "approfondisci", "perché", etc.) trigger rewriting; long self-contained queries skip it
+
+### Changed
+- `is-launch` CLI entry point removed from `pyproject.toml` — use `ci-serve` / `di-serve` /
+  `mi-serve` directly. The `launcher.py` file is kept but not advertised.
+
+---
+
 ## [0.2.17] — 2026-05-26
 
 ### Fixed

@@ -447,11 +447,17 @@ async function sendMessage(question) {
   let answer = '', sources = [], meta = {};
   const t0 = Date.now();
 
+  // Build history from current conversation (exclude the user message just added)
+  const histConv = _getConv(_currentId);
+  const history = histConv
+    ? histConv.messages.slice(0, -1).slice(-6).map(m => ({ role: m.role, content: m.content }))
+    : [];
+
   try {
     const res = await fetch('/api/v1/stream', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({question, top_k:5, min_score:0.3})
+      body: JSON.stringify({ question, top_k: 5, min_score: 0.3, history })
     });
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();

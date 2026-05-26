@@ -24,6 +24,7 @@ class QueryRequest(BaseModel):
     top_k:     int   = 5
     domain:    str | None = None
     min_score: float = 0.3
+    history:   list[dict] = []   # [{"role": "user"|"assistant", "content": "..."}]
 
 
 class QueryResponse(BaseModel):
@@ -42,6 +43,60 @@ def _build_context(results: list) -> str:
         src = r.chunk.get("source", "unknown")
         parts.append(f"[{src}]\n{r.chunk['text']}")
     return "\n\n---\n\n".join(parts)
+
+
+def _build_context_with_history(context: str, history: list[dict]) -> str:
+    """Prepend the last conversation turns to the retrieval context."""
+    if not history:
+        return context
+    turns = "\n".join(
+        f"{m['role'].upper()}: {m['content'][:400]}"
+        for m in history[-6:]
+    )
+    if not context:
+        return f"[Conversazione precedente]\n{turns}"
+    return f"[Conversazione precedente]\n{turns}\n\n[Documenti recuperati]\n{context}"
+
+
+async def _rewrite_query(question: str, history: list[dict], llm) -> str:
+    """If the question looks like a follow-up, rewrite it as a standalone search query."""
+    if not history:
+        return question
+
+    q_lower = question.lower()
+    is_short = len(question.split()) <= 7
+    followup_signals = [
+        "it", "that", "this", "those", "them", "more", "detail", "explain",
+        "elaborate", "also", "why", "how", "what about",
+        "quello", "questa", "questo", "queste", "questi",
+        "di più", "approfondisci", "spiegami", "perché", "come mai",
+        "inoltre", "ancora", "altro", "altri", "altra",
+    ]
+    has_signal = any(s in q_lower for s in followup_signals)
+
+    if not is_short and not has_signal:
+        return question  # query già autoesplicativa
+
+    history_text = "\n".join(
+        f"{m['role'].upper()}: {m['content'][:300]}"
+        for m in history[-4:]
+    )
+    prompt = (
+        f"Conversazione:\n{history_text}\n\n"
+        f"Riscrivi questa domanda come query di ricerca autonoma e completa "
+        f"(sostituisci pronomi e riferimenti con termini espliciti, "
+        f"includi il contesto necessario per capirla senza la conversazione):\n"
+        f"\"{question}\"\n\n"
+        f"Rispondi SOLO con la query riscritta, nessuna spiegazione."
+    )
+    try:
+        rewritten = await asyncio.to_thread(llm.generate, prompt, "")
+        rewritten = rewritten.strip().strip('"').strip("'").split("\n")[0]
+        logger.info("Query rewrite: %r → %r", question, rewritten)
+        return rewritten if rewritten else question
+    except Exception as exc:
+        logger.warning("Query rewrite failed: %s — using original", exc)
+        return question
 
 
 def _build_sources(filtered: list) -> list[dict]:
@@ -142,10 +197,13 @@ def create_app(
     async def query(req: QueryRequest):
         t0 = time.perf_counter()
 
-        results  = retriever.search(req.question, top_k=req.top_k, domain=req.domain)
+        # Rewrite follow-up questions using conversation history
+        effective_q = await _rewrite_query(req.question, req.history, _llm)
+
+        results  = retriever.search(effective_q, top_k=req.top_k, domain=req.domain)
         filtered = [r for r in results if r.score >= req.min_score]
         sources  = _build_sources(filtered)
-        context  = _build_context(filtered)
+        context  = _build_context_with_history(_build_context(filtered), req.history)
         confidence = filtered[0].score if filtered else 0.0
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
@@ -182,10 +240,13 @@ def create_app(
     # ── Streaming query (SSE) ─────────────────────────────────────────────────
     @app.post("/api/v1/stream")
     async def stream_query(req: QueryRequest):
-        results  = retriever.search(req.question, top_k=req.top_k, domain=req.domain)
+        # Rewrite follow-up questions using conversation history
+        effective_q = await _rewrite_query(req.question, req.history, _llm)
+
+        results  = retriever.search(effective_q, top_k=req.top_k, domain=req.domain)
         filtered = [r for r in results if r.score >= req.min_score]
         sources  = _build_sources(filtered)
-        context  = _build_context(filtered)
+        context  = _build_context_with_history(_build_context(filtered), req.history)
         confidence = filtered[0].score if filtered else 0.0
 
         from intelligence_core.config import settings

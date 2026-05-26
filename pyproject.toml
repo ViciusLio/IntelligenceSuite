@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligence-suite"
-version = "0.2.17"
+version = "0.2.18"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
 license = "MIT"
@@ -61,7 +61,7 @@ di-embed   = "DocIntelligence.embed_docs:main"
 di-serve   = "DocIntelligence.doc_server:main"
 mi-ingest  = "MentorIntelligence.content.ingest_practices:main"
 mi-serve   = "MentorIntelligence.mentor_server:main"
-is-launch  = "intelligence_ui.launcher:main"
+# is-launch removed — use ci-serve / di-serve / mi-serve directly
 
 [project.urls]
 Homepage   = "https://github.com/ViciusLio/IntelligenceSuite"
