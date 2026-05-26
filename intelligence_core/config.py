@@ -1,5 +1,8 @@
 """Centralised configuration via environment variables / .env file."""
 
+from pathlib import Path
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -42,8 +45,16 @@ class Settings(BaseSettings):
 
     # ── Vector store ───────────────────────────────────────────────────────────
     vector_store:       str = "chromadb"
-    chroma_persist_dir: str = "./.chroma"
+    # Default: ~/.intelligence_suite/chroma  (absolute — works from any CWD)
+    # Override via CHROMA_PERSIST_DIR in .env, e.g. CHROMA_PERSIST_DIR=./.chroma
+    chroma_persist_dir: str = "~/.intelligence_suite/chroma"
     pgvector_dsn:       str = ""
+
+    @field_validator("chroma_persist_dir", mode="before")
+    @classmethod
+    def _resolve_chroma_dir(cls, v: str) -> str:
+        """Expand ~ and resolve to an absolute path so CWD never matters."""
+        return str(Path(v).expanduser().resolve())
 
     # ── Server ports (one per module, avoids conflicts when running together) ──
     ci_port: int = 8080   # CodeIntelligence

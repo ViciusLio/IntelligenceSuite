@@ -92,12 +92,8 @@ CHAT_HTML = """<!DOCTYPE html>
         IntelligenceSuite retrieves the most relevant chunks from your indexed codebase
         or documents and generates a precise, source-cited answer — fully on-premise.
       </p>
-      <div class="flex flex-wrap gap-2 justify-center" id="suggestions">
-        <button class="sug" onclick="useSuggestion(this)">Where is authentication handled?</button>
-        <button class="sug" onclick="useSuggestion(this)">How does the retriever work?</button>
-        <button class="sug" onclick="useSuggestion(this)">What LLM backends are supported?</button>
-        <button class="sug" onclick="useSuggestion(this)">How is ChromaDB used?</button>
-      </div>
+      <!-- Suggestion pills — populated dynamically from /health module field -->
+      <div class="flex flex-wrap gap-2 justify-center" id="suggestions"></div>
     </div>
 
   </div>
@@ -132,17 +128,49 @@ CHAT_HTML = """<!DOCTYPE html>
 const turns   = [];       // {q, a, sources, ms, conf, backend, escalated}
 let streaming = false;
 let activeTurn = null;
+let _moduleInited = false;
+
+// ── Module suggestions ─────────────────────────────────────────────────────
+const SUGGESTIONS = {
+  code: [
+    'Where is authentication handled?',
+    'How does the retriever work?',
+    'What LLM backends are supported?',
+    'How is ChromaDB used?',
+  ],
+  doc: [
+    'How are PDF documents parsed?',
+    'What file formats are supported?',
+    'How do I search for a specific topic?',
+    'Where is the document indexing configured?',
+  ],
+  mentor: [
+    'What is my onboarding path?',
+    'How do I get started with the codebase?',
+    'What resources are available for my role?',
+    'Show me the architecture overview.',
+  ],
+};
+
+const MODULE_TITLES = {
+  code:   'Code Intelligence',
+  doc:    'Doc Intelligence',
+  mentor: 'Mentor Intelligence',
+};
+
+function renderSuggestions(module) {
+  const sugs = SUGGESTIONS[module] || SUGGESTIONS.code;
+  const el = document.getElementById('suggestions');
+  if (!el) return;
+  el.innerHTML = sugs.map(s =>
+    `<button class="sug" onclick="useSuggestion(this)">${esc(s)}</button>`
+  ).join('');
+}
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 (async function boot() {
   await checkHealth();
   setInterval(checkHealth, 20000);
-  // Set title from path
-  const path = location.pathname;
-  const titles = {'/':'Intelligence Chat', '/code':'Code Intelligence',
-                  '/doc':'Doc Intelligence', '/mentor':'Mentor Intelligence'};
-  document.getElementById('module-title').textContent =
-    Object.entries(titles).find(([k]) => path.includes(k))?.[1] || 'Intelligence Chat';
 })();
 
 async function checkHealth() {
@@ -153,6 +181,13 @@ async function checkHealth() {
     set('srv-llm',     d.llm_backend || '—', 'text-xs text-gray-400');
     set('dot',         '',                    'w-2 h-2 rounded-full bg-green-400');
     set('dot-label',   (d.llm_backend||'?') + ' · ' + (d.chunks_indexed||0) + ' chunks', 'text-xs text-green-600');
+    // Set module title + suggestions once
+    if (!_moduleInited && d.module) {
+      const mod = d.module;
+      document.getElementById('module-title').textContent = MODULE_TITLES[mod] || 'Intelligence Chat';
+      renderSuggestions(mod);
+      _moduleInited = true;
+    }
   } catch {
     set('srv-status', '● offline', 'text-xs text-red-400');
     set('dot', '',                  'w-2 h-2 rounded-full bg-red-400');

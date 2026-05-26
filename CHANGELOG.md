@@ -10,6 +10,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.0] — 2026-05-26
+
+### Fixed
+- **Zero vector silent storage** — `OllamaEmbedder._embed_single()` now raises
+  `RuntimeError` with actionable instructions when Ollama is unreachable, instead of
+  silently storing `[0.0] * 384` zero vectors in ChromaDB (which produced nonsense
+  retrieval results). Users get a clear error pointing to `ollama serve` or
+  `EMBED_BACKEND=st` as the fix.
+
+### Changed
+- **Absolute `CHROMA_PERSIST_DIR` default** — changed from `./.chroma` (relative,
+  CWD-dependent) to `~/.intelligence_suite/chroma` (absolute, resolved at startup
+  via `Path.expanduser().resolve()`). Data is now found regardless of which directory
+  the server or CLI command is launched from. Override with `CHROMA_PERSIST_DIR=...`
+  in `.env` if a custom location is needed.
+- **Dynamic chat UI suggestion pills** — each server now reports its `module` field
+  in `GET /health`; the chat UI reads this at boot and renders context-appropriate
+  suggestion pills (code / doc / mentor questions) instead of hardcoded code examples.
+- **CORS headers** — `CORSMiddleware` added to all three FastAPI apps; enables
+  embedding the API in external dashboards or calling it from other origins.
+- **`module` field in `/health`** — response now includes `"module": "code|doc|mentor"`
+  so clients can identify which server they're talking to.
+
+### Deprecated
+- `intelligence_ui/chat_app.py` (Streamlit interface) — superseded by the built-in
+  streaming chat UI at `http://localhost:808x/`. Will be removed in a future release.
+
+---
+
 ## [0.1.9] — 2026-05-26
 
 ### Added

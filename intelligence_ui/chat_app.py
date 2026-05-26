@@ -1,6 +1,14 @@
 """
-IntelligenceSuite — Chat UI
-============================
+IntelligenceSuite — Streamlit Chat UI  [DEPRECATED]
+=====================================================
+.. deprecated::
+    This Streamlit interface is superseded by the built-in streaming chat UI
+    served directly from each RAG server at http://localhost:808x/.
+    The built-in UI requires no extra dependencies, streams responses token
+    by token, and adapts its suggestions to each module (code / doc / mentor).
+
+    This file is kept for reference only and will be removed in a future release.
+
 Streamlit chat interface for CodeIntelligence, DocIntelligence, MentorIntelligence.
 
 Run:

@@ -13,7 +13,7 @@ from intelligence_core.config import settings
 def build_app():
     store = ChromaStore(collection_name="doc_intelligence")
     retriever = Retriever(embedder=get_embedder(), store=store)
-    return create_app(title="DocIntelligence RAG Server", retriever=retriever)
+    return create_app(title="DocIntelligence RAG Server", retriever=retriever, module="doc")
 
 
 app = build_app()

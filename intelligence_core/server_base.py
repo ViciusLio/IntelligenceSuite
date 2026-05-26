@@ -8,6 +8,7 @@ import time
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -89,11 +90,12 @@ def create_app(
     retriever: Retriever,
     policy: EscalationPolicy | None = None,
     llm_provider: LLMProvider | None = None,
+    module: str = "code",
 ) -> FastAPI:
     """
     Build a FastAPI app with:
       GET  /               — chat UI (streaming, browser-ready)
-      GET  /health         — liveness + chunk count
+      GET  /health         — liveness + chunk count + module name
       POST /api/v1/query   — semantic search + LLM answer (non-streaming)
       POST /api/v1/stream  — semantic search + LLM answer (SSE streaming)
 
@@ -102,10 +104,21 @@ def create_app(
         retriever:    Configured Retriever (embedder + vector store).
         policy:       Escalation policy; defaults to EscalationPolicy().
         llm_provider: LLM backend; defaults to get_llm_provider() from settings.
+        module:       Module identifier ("code" | "doc" | "mentor") — used by
+                      the chat UI to show context-aware suggestion pills.
     """
-    app     = FastAPI(title=title, version="0.1.5")
+    app     = FastAPI(title=title, version="0.2.0")
     _policy = policy or EscalationPolicy()
     _llm    = llm_provider or get_llm_provider()
+
+    # ── CORS ──────────────────────────────────────────────────────────────────
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],          # tighten in production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # ── Chat UI ───────────────────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -118,6 +131,7 @@ def create_app(
     def health():
         return {
             "status":         "ok",
+            "module":         module,
             "chunks_indexed": retriever.store.count(),
             "llm_backend":    _llm.backend_name,
             "llm_available":  _llm.is_available(),
