@@ -10,6 +10,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.17] — 2026-05-26
+
+### Fixed
+- Launcher `GET /api/status` was synchronous (`httpx.get` blocking in thread pool).
+  Under load or on Ctrl+C, FastAPI cancelled the blocked thread → `CancelledError` /
+  `Exception in ASGI application` in the console. Rewritten as a proper `async` endpoint
+  using `httpx.AsyncClient` with `asyncio.gather` — all three `/health` checks now run
+  in parallel, making status polling ~3× faster and fully non-blocking.
+
+---
+
 ## [0.2.16] — 2026-05-26
 
 ### Fixed

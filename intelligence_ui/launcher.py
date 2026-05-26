@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import asyncio
+
 import httpx
 import uvicorn
 from fastapi import FastAPI
@@ -129,26 +131,28 @@ def _stop(key: str) -> dict:
 
 # ── REST endpoints ───────────────────────────────────────────────────────────
 @app.get("/api/status")
-def status():
-    result = {}
-    for key, mod in MODULES.items():
+async def status():
+    async def _check(key: str, mod: dict) -> tuple[str, dict]:
         running = False
         chunks  = 0
         try:
-            r = httpx.get(_health_url(mod["port"]), timeout=1.5)
+            async with httpx.AsyncClient() as client:
+                r = await client.get(_health_url(mod["port"]), timeout=1.5)
             if r.status_code == 200:
                 running = True
                 chunks  = r.json().get("chunks_indexed", 0)
         except Exception:
             pass
-        result[key] = {
-            "running":     running,
-            "managed":     _alive(key),
-            "port":        mod["port"],
-            "chunks":      chunks,
-            "url":         f"http://localhost:{mod['port']}",
+        return key, {
+            "running": running,
+            "managed": _alive(key),
+            "port":    mod["port"],
+            "chunks":  chunks,
+            "url":     f"http://localhost:{mod['port']}",
         }
-    return JSONResponse(result)
+
+    results = await asyncio.gather(*[_check(k, m) for k, m in MODULES.items()])
+    return JSONResponse(dict(results))
 
 
 @app.post("/api/start/{key}")
