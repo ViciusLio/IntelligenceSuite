@@ -63,6 +63,87 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ---
 
+## Jupyter Notebook example
+
+Three cells to go from raw repository to natural-language answers.
+
+**Cell 1 — Parse & embed (run once)**
+
+```python
+from pathlib import Path
+from CodeIntelligence.parse_repo import parse_repo
+from CodeIntelligence.embed_chunks import embed_chunks
+
+REPO = Path("/path/to/your/repo")
+
+chunks = parse_repo(REPO, output=Path("chunks.jsonl"))
+print(f"✅ {len(chunks)} chunks extracted")
+
+embed_chunks(Path("chunks.jsonl"))   # → ChromaDB local, no server needed
+print("✅ Indexed into ChromaDB")
+```
+
+```
+Parsed: 631 chunks, 23 files without parser
+✅ 631 chunks extracted
+Embedding 631/631 chunks...
+  batch 1: 32 chunks embedded
+  ...
+  batch 20: 32 chunks embedded
+JSONL saved: chunks.jsonl
+ChromaDB 'code_intelligence': 631 total chunks indexed
+✅ Indexed into ChromaDB
+```
+
+**Cell 2 — Semantic search**
+
+```python
+from intelligence_core.retriever import Retriever
+
+retriever = Retriever.load_default(collection_name="code_intelligence")
+
+QUESTION = "How does the retriever work?"
+results = retriever.search(QUESTION, domain="code", top_k=5)
+
+for r in results:
+    print(f"[{r.rank}] score={r.score:.3f} | {r.chunk['source']} ({r.chunk['type']})")
+```
+
+```
+[1] score=0.823 | intelligence_core/retriever.py (function)
+[2] score=0.791 | README.md (file)
+[3] score=0.764 | intelligence_core/store.py (function)
+[4] score=0.741 | examples/01_code_intelligence.py (file)
+[5] score=0.718 | intelligence_core/embedder.py (function)
+```
+
+**Cell 3 — LLM answer**
+
+```python
+from intelligence_core.llm import get_llm_provider
+
+llm     = get_llm_provider()   # reads LLM_BACKEND from .env — default: ollama
+context = "\n\n---\n\n".join(r.chunk["text"] for r in results[:3])
+answer  = llm.generate(QUESTION, context)
+
+print(f"💬 Answer ({llm.backend_name}):\n{answer}")
+```
+
+```
+💬 Answer (ollama):
+
+The retriever works by loading a default collection named "code_intelligence"
+and then searching for documents related to the query within the "code" domain.
+It retrieves the top 5 most relevant results using semantic similarity combined
+with a keyword boost (+0.1 per matching term, capped at +0.3), then re-ranks
+by final score. Sources are cited with file path, chunk type, and similarity score.
+```
+
+> Tested on a standard laptop (CPU only, no GPU). Cell 1 is a one-time operation —
+> subsequent queries (Cell 2 + 3) return in **1–5 seconds**.
+
+---
+
 ## The problem it solves
 
 How much time does your team lose every week hunting down where a function is implemented,
