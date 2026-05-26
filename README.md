@@ -142,6 +142,92 @@ by final score. Sources are cited with file path, chunk type, and similarity sco
 > Tested on a standard laptop (CPU only, no GPU). Cell 1 is a one-time operation —
 > subsequent queries (Cell 2 + 3) return in **1–5 seconds**.
 
+### DocIntelligence notebook example
+
+**Cell 1 — Ingest & embed documents (run once)**
+
+```python
+from pathlib import Path
+from DocIntelligence.ingest_docs import ingest_docs
+from DocIntelligence.embed_docs import embed_docs
+
+DOCS = Path("/path/to/your/docs")   # PDF, DOCX, XLSX, TXT, MD
+
+chunks = ingest_docs(DOCS, output=Path("doc_chunks.jsonl"))
+print(f"✅ {len(chunks)} chunks ingested")
+
+embed_docs(Path("doc_chunks.jsonl"))   # → ChromaDB "doc_intelligence"
+print("✅ Indexed into ChromaDB")
+```
+
+**Cell 2 — Search & answer**
+
+```python
+from intelligence_core.retriever import Retriever
+from intelligence_core.llm import get_llm_provider
+
+retriever = Retriever.load_default(collection_name="doc_intelligence")
+llm       = get_llm_provider()
+
+QUESTION  = "What are the production deploy prerequisites?"
+results   = retriever.search(QUESTION, domain="doc", top_k=5)
+context   = "\n\n---\n\n".join(r.chunk["text"] for r in results[:3])
+answer    = llm.generate(QUESTION, context)
+
+print(f"💬 Answer ({llm.backend_name}):\n{answer}")
+print("\n📎 Sources:")
+for r in results:
+    print(f"  [{r.rank}] score={r.score:.3f} | {r.chunk['source']} ({r.chunk['type']})")
+```
+
+### MentorIntelligence notebook example
+
+**Cell 1 — Ingest best practices (run once)**
+
+```python
+from pathlib import Path
+from MentorIntelligence.content.ingest_practices import ingest_practices
+
+PRACTICES = Path("./practices")   # folder with .md / .txt team conventions
+PRACTICES.mkdir(exist_ok=True)
+
+# Drop any .md files with team conventions, naming guides, runbooks
+chunks = ingest_practices(PRACTICES)
+print(f"✅ {len(chunks)} practice chunks indexed into ChromaDB 'mentor_intelligence'")
+```
+
+**Cell 2 — Start an onboarding session**
+
+```python
+import httpx, json
+
+# Requires: mi-serve running on http://localhost:8082
+BASE = "http://localhost:8082"
+
+# Create session
+resp = httpx.post(f"{BASE}/api/v1/mentor/onboard", json={
+    "user_name": "Alice",
+    "intro": "I am a senior Python developer, joining the team today."
+}, timeout=30)
+session = resp.json()
+print(f"Session: {session['session_id']}")
+print(f"Profile: {session['profile']}")
+print(f"\nOnboarding path:\n{session['path']}")
+```
+
+**Cell 3 — Ask within the onboarding path**
+
+```python
+resp = httpx.post(f"{BASE}/api/v1/mentor/ask", json={
+    "session_id": session["session_id"],
+    "question":   "How does authentication work in this codebase?"
+}, timeout=60)
+
+answer = resp.json()
+print(f"💬 Answer:\n{answer['answer']}")
+print(f"\n📎 Sources: {[s['source'] for s in answer['sources'][:3]]}")
+```
+
 ---
 
 ## The problem it solves

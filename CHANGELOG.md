@@ -10,6 +10,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.5] — 2026-05-26
+
+### Added
+- `intelligence_ui/chat_app.py` — Streamlit chat interface for all three modules
+  - Left sidebar with clickable conversation history (numbered turns)
+  - Module selector: Code / Doc / Mentor Intelligence
+  - Live server health check with chunk count and LLM status
+  - Source citations expandable below each answer
+  - Latency / confidence / backend / escalation metadata per turn
+  - Clear conversation button
+- README: DocIntelligence and MentorIntelligence notebook examples
+- `[ui]` extra: `pip install "intelligence-suite[ui]"`
+
+---
+
 ## [0.1.4] — 2026-05-26
 
 ### Docs
