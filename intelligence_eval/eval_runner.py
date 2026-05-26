@@ -81,8 +81,9 @@ def run_eval(
     latencies: list[float] = []
 
     for idx, q in enumerate(queries, 1):
+        question = q.get("question") or q.get("query", "")
         t0 = time.perf_counter()
-        retrieved  = retriever.search(q["question"], top_k=top_k)
+        retrieved  = retriever.search(question, top_k=top_k)
         latency_ms = (time.perf_counter() - t0) * 1000
         latencies.append(latency_ms)
 
@@ -95,7 +96,7 @@ def run_eval(
 
         per_query.append({
             "id":         q.get("id", f"Q{idx:03d}"),
-            "question":   q.get("question", ""),
+            "question":   question,
             "category":   q.get("category", ""),
             "difficulty": q.get("difficulty", ""),
             "hit_at_1":   rank == 1,
@@ -110,7 +111,7 @@ def run_eval(
 
         marker = "✓" if rank else "✗"
         rank_s = f"@{rank}" if rank else "miss"
-        print(f"  {marker} {q.get('id','?'):>10}  {rank_s:<6}  {latency_ms:>6.0f}ms  {q['question'][:55]}")
+        print(f"  {marker} {q.get('id','?'):>10}  {rank_s:<6}  {latency_ms:>6.0f}ms  {question[:55]}")
 
     # ── Aggregate ─────────────────────────────────────────────────────────────
     n          = len(per_query)
