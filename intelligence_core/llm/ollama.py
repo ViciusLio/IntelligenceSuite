@@ -71,6 +71,47 @@ class OllamaProvider:
                 f"Most relevant context:\n{context[:600]}"
             )
 
+    def stream(
+        self,
+        question: str,
+        context: str,
+        *,
+        system_prompt: str | None = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.1,
+    ):
+        """Sync generator — yields tokens one by one as Ollama streams them."""
+        import json as _json
+        system  = system_prompt or SYSTEM_PROMPT_DEFAULT
+        user_msg = f"Context:\n{context}\n\nQuestion: {question}"
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self.base_url}/api/chat",
+                json={
+                    "model":   self.model,
+                    "stream":  True,
+                    "options": {"temperature": temperature, "num_predict": max_tokens},
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user",   "content": user_msg},
+                    ],
+                },
+                timeout=120.0,
+            ) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if line:
+                        data  = _json.loads(line)
+                        token = data.get("message", {}).get("content", "")
+                        if token:
+                            yield token
+                        if data.get("done"):
+                            break
+        except Exception as exc:
+            logger.warning("OllamaProvider.stream failed: %s", exc)
+            yield f"\n\n[LLM error: {exc}]"
+
     def is_available(self) -> bool:
         try:
             resp = httpx.get(f"{self.base_url}/api/tags", timeout=5.0)

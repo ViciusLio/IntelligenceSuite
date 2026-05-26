@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.6] — 2026-05-26
+
+### Added
+- **Streaming chat UI** — open `http://localhost:808x` in any browser after starting a serve command
+  - Real-time token streaming (SSE) — responses appear word by word
+  - Left sidebar with numbered, clickable conversation history
+  - Source citations as chips below each answer
+  - Server health / chunk count / LLM backend status
+  - Suggestion pills on welcome screen
+  - Zero extra dependencies — served directly from the FastAPI server
+- `POST /api/v1/stream` — new SSE endpoint on all three servers
+- `GET /` — serves the chat HTML page from the RAG server
+- `OllamaProvider.stream()` — sync token generator via httpx streaming
+- `OpenAICompatProvider.stream()` — sync token generator via openai SDK streaming
+- `intelligence_ui/templates.py` — self-contained HTML template (Tailwind CDN)
+
+---
+
 ## [0.1.5] — 2026-05-26
 
 ### Added

@@ -106,6 +106,45 @@ class OpenAICompatProvider:
                 f"Most relevant context:\n{context[:600]}"
             )
 
+    def stream(
+        self,
+        question: str,
+        context: str,
+        *,
+        system_prompt: str | None = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.1,
+    ):
+        """Sync generator — yields tokens via OpenAI streaming."""
+        try:
+            from openai import OpenAI
+        except ImportError:
+            yield self.generate(question, context, system_prompt=system_prompt,
+                                max_tokens=max_tokens, temperature=temperature)
+            return
+
+        system  = system_prompt or SYSTEM_PROMPT_DEFAULT
+        user_msg = f"Context:\n{context}\n\nQuestion: {question}"
+        try:
+            client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+            with client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user_msg},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+            ) as stream:
+                for chunk in stream:
+                    token = chunk.choices[0].delta.content or ""
+                    if token:
+                        yield token
+        except Exception as exc:
+            logger.error("OpenAICompatProvider.stream failed: %s", exc)
+            yield f"\n\n[LLM error: {exc}]"
+
     def is_available(self) -> bool:
         try:
             from openai import OpenAI
