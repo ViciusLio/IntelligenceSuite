@@ -10,6 +10,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.9] — 2026-05-26
+
+### Fixed
+- Launcher **Start button** now works reliably on Windows/conda environments.
+  `_resolve_cmd()` uses `shutil.which()` first, then searches the `Scripts/`
+  directory next to `sys.executable` — covers conda, venv and global installs.
+  Previously the subprocess couldn't find `ci-serve` when PATH wasn't inherited.
+- Launcher JS: API error responses are now shown in the footer bar instead of
+  silently failing. Button polling extended to 12 s (was 4.8 s). Stop button
+  turns red on hover. `className` management replaced fragile regex with constants.
+
+---
+
 ## [0.2.8] — 2026-05-26
 
 ### Added
