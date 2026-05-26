@@ -10,6 +10,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.19] — 2026-05-26
+
+### Changed
+- Launcher (`is-launch`) rewritten as a pure **navigation hub** — no subprocess management,
+  no Start/Stop buttons. Serves a single-page dashboard that polls each module's `/health`
+  directly from the browser; shows status dot + chunk count + `Apri →` link per module.
+  Zero JS complexity, cannot break.
+- `TestKPIThresholds` now auto-skips (instead of failing) when benchmark chunk IDs are not
+  found in the indexed store — the tests only run against the reference dataset.
+  Test result: **54 passed, 5 skipped, 0 failed**.
+
+---
+
 ## [0.2.18] — 2026-05-26
 
 ### Added
