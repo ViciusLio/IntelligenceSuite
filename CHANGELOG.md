@@ -10,6 +10,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.6] — 2026-05-26
+
+### Changed
+- Version bump only — identical to 0.2.5 content. Required because PyPI
+  does not allow re-uploading a filename once it has been published.
+
+---
+
 ## [0.2.5] — 2026-05-26
 
 ### Fixed
