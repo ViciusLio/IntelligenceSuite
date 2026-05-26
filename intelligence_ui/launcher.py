@@ -296,13 +296,13 @@ function renderActions(key, running) {
   if (!el) return;
 
   if (running) {
-    // Online: big Open + small Stop
+    // Online: Avvia (apre) + piccolo Stop
     el.innerHTML = `
       <div class="flex gap-2">
         <a href="http://localhost:${port}" target="_blank"
-           class="btn flex-1 text-center bg-gray-700 hover:bg-gray-600 text-sm
+           class="btn flex-1 text-center ${COLORS[key].launch} text-sm
                   py-2.5 rounded-xl font-semibold">
-          Apri →
+          ▶ Avvia
         </a>
         <button onclick="stopModule('${key}')" title="Ferma il server"
                 class="btn px-3 bg-gray-800 hover:bg-red-900 text-gray-400 hover:text-red-300
@@ -311,12 +311,13 @@ function renderActions(key, running) {
         </button>
       </div>`;
   } else {
-    // Offline: single launch button
+    // Offline: stesso bottone, colore grigio
     el.innerHTML = `
-      <button onclick="launchModule('${key}')"
-              class="btn w-full ${COLORS[key].launch} text-sm py-2.5 rounded-xl font-semibold">
+      <a href="http://localhost:${port}" target="_blank"
+         class="btn block w-full text-center bg-gray-700 hover:bg-gray-600 text-sm
+                py-2.5 rounded-xl font-semibold">
         ▶ Avvia
-      </button>`;
+      </a>`;
   }
 }
 
@@ -357,13 +358,6 @@ async function poll() {
   }
 }
 
-// ── Launch: apre il browser subito, avvia il server in background se offline ──
-function launchModule(key) {
-  // Apre immediatamente — esattamente come faceva "Open →"
-  window.open('http://localhost:' + PORTS[key], '_blank');
-  // Tenta di avviare il server in background (fire-and-forget, non blocca)
-  fetch('/api/start/' + key, { method:'POST' }).catch(() => {});
-}
 
 // ── Stop ──────────────────────────────────────────────────────────────────
 async function stopModule(key) {
