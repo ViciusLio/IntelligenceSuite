@@ -10,6 +10,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.4] — 2026-05-26
+
+### Added
+- **`practices/` folder** — four Markdown guides specific to IntelligenceSuite
+  onboarding and usage, ready to be ingested by MentorIntelligence:
+  - `01_onboarding_nuovo_developer.md` — day-by-day setup, first indexing,
+    architecture overview, team conventions, test suite
+  - `02_come_usare_code_intelligence.md` — full CI pipeline, CLI commands,
+    Python API, LLM config, troubleshooting
+  - `03_come_usare_doc_intelligence.md` — DI supported formats, pipeline,
+    example questions, Python API, confidence/escalation notes
+  - `04_come_usare_mentor_intelligence.md` — MI onboarding flow, profile
+    detection table, REST + Python API examples, recommended LLM config
+- MentorIntelligence can now be bootstrapped with `mi-ingest ./practices`
+  to answer onboarding questions about IntelligenceSuite itself
+
+---
+
 ## [0.2.3] — 2026-05-26
 
 ### Added
