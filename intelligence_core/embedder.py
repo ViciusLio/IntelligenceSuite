@@ -52,16 +52,27 @@ class OllamaEmbedder:
 
 
 class SentenceTransformerEmbedder:
-    """Usa all-MiniLM-L6-v2 offline. Richiede sentence-transformers installato."""
+    """CPU-only offline embedder via sentence-transformers.
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    Model is controlled by ``ST_MODEL`` in .env (or the ``model_name`` argument).
+
+    Recommended models:
+        - ``all-MiniLM-L6-v2``                        English only, fast (default)
+        - ``paraphrase-multilingual-MiniLM-L12-v2``   50+ languages, same speed
+        - ``paraphrase-multilingual-mpnet-base-v2``   50+ languages, higher quality
+    """
+
+    def __init__(self, model_name: str = None):
+        from intelligence_core.config import settings
+        _model_name = model_name or settings.st_model
         try:
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(model_name)
+            self._model = SentenceTransformer(_model_name)
+            logger.info("SentenceTransformerEmbedder: loaded model '%s'", _model_name)
         except ImportError:
             raise ImportError(
-                "sentence-transformers non installato. "
-                "Esegui: pip install sentence-transformers"
+                "sentence-transformers not installed. "
+                "Run: pip install 'intelligence-suite[st]'"
             )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -105,8 +116,8 @@ def get_embedder(backend: str = None) -> Embedder:
     from intelligence_core.config import settings
     backend = backend or settings.embed_backend
 
-    if backend == "sentence_transformer":
-        return SentenceTransformerEmbedder()
+    if backend in ("st", "sentence_transformer"):
+        return SentenceTransformerEmbedder()   # model read from settings.st_model
     if backend == "claude":
         return ClaudeEmbedder()
     return OllamaEmbedder()

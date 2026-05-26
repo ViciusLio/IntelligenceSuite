@@ -10,6 +10,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.9] — 2026-05-26
+
+### Added
+- `ST_MODEL` config setting — selects the SentenceTransformer model via `.env`
+  Default: `all-MiniLM-L6-v2` (English). Set to `paraphrase-multilingual-MiniLM-L12-v2`
+  for Italian / French / Spanish / German and 50+ other languages.
+- `SentenceTransformerEmbedder` now reads `ST_MODEL` from settings automatically
+- `.env.example`: multilingual model options documented with comments
+- README: new Multilingual support section with model comparison table
+- `get_embedder()` factory now accepts both `"st"` and `"sentence_transformer"` as backend name
+
+---
+
 ## [0.1.8] — 2026-05-26
 
 ### Fixed

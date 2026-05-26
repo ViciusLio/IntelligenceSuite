@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Choices: ollama | st (sentence-transformers) | claude (voyage)
     embed_backend:    str = "ollama"
     embed_batch_size: int = 32
+    # SentenceTransformer model — change for multilingual support:
+    #   English only (fast, 384-dim):   all-MiniLM-L6-v2  (default)
+    #   Multilingual 50+ langs (384-dim): paraphrase-multilingual-MiniLM-L12-v2
+    #   Multilingual high quality (768-dim): paraphrase-multilingual-mpnet-base-v2
+    st_model: str = "all-MiniLM-L6-v2"
 
     # ── Vector store ───────────────────────────────────────────────────────────
     vector_store:       str = "chromadb"

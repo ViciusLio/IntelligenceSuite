@@ -609,6 +609,35 @@ the system automatically escalates to Claude — regardless of the primary `LLM_
 | **SentenceTransformer** | `st` | `[st]` | CPU-only, fully offline, no Ollama needed |
 | **Claude / Voyage** | `claude` | `[claude]` | Cloud embeddings via Voyage AI |
 
+### Multilingual support
+
+By default the embedding model is English-optimised. To query and answer in Italian
+(or any of 50+ languages), switch to a multilingual SentenceTransformer model:
+
+```env
+# .env
+EMBED_BACKEND=st
+ST_MODEL=paraphrase-multilingual-MiniLM-L12-v2   # 50+ languages, same speed as default
+# ST_MODEL=paraphrase-multilingual-mpnet-base-v2  # higher quality, 768-dim
+```
+
+```bash
+pip install "intelligence-suite[st]"
+```
+
+Then re-run `ci-embed` (or `di-embed`) to rebuild the index with multilingual embeddings.
+The LLM will automatically respond in the language of the question — no extra configuration needed.
+
+| Model | Languages | Dimensions | Speed |
+|---|---|---|---|
+| `all-MiniLM-L6-v2` | English only | 384 | ⚡ Fast (default) |
+| `paraphrase-multilingual-MiniLM-L12-v2` | 50+ (IT, FR, ES, DE, …) | 384 | ⚡ Fast |
+| `paraphrase-multilingual-mpnet-base-v2` | 50+ | 768 | 🐢 Slower, higher quality |
+
+> **Note:** switching embedding model requires re-indexing from scratch — the vector
+> dimensions may change (384 → 768) and ChromaDB will reject mixed-dimension collections.
+> Delete `.chroma/` before re-running `ci-embed` with a new model.
+
 ### Vector store
 
 | Store | Status | Notes |
