@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.10] — 2026-05-26
+
+### Changed
+- Launcher UX redesign: removed the redundant Open/Start split.
+  Each card now has **one button** that adapts to the server state:
+  - Offline → **▶ Avvia** — starts the server AND opens the browser automatically
+  - Online  → **Apri →** (navigate) + small **■** stop button
+  - Mid-launch → spinner "Avvio in corso…"
+  Header button renamed to **▶ Avvia tutto**.
+
+---
+
 ## [0.2.9] — 2026-05-26
 
 ### Fixed

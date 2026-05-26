@@ -40,9 +40,10 @@ pip install intelligence-suite
 is-launch          # opens http://localhost:8079 in your browser
 ```
 
-From the launcher page click **Start All** — CodeIntelligence, DocIntelligence and
-MentorIntelligence all start in the background. Click **Open →** on any card to open
-its chat UI. No extra terminals needed.
+From the launcher page click **▶ Avvia tutto** — CodeIntelligence, DocIntelligence and
+MentorIntelligence all start in the background and open automatically in the browser.
+Each card has a single **▶ Avvia** button: when the server is offline it starts it and
+opens the chat; when online it shows **Apri →** + a stop button. No extra terminals needed.
 
 > **First time?** You still need to index your content before starting the servers:
 > ```bash

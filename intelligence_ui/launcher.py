@@ -199,10 +199,10 @@ _LAUNCHER_HTML = """\
       <p class="text-xs text-gray-500">On-premise knowledge retrieval · Local AI</p>
     </div>
   </div>
-  <button onclick="startAll()"
+  <button onclick="launchAll()"
           class="btn bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 rounded-xl
                  text-sm font-semibold flex items-center gap-2">
-    ▶&nbsp; Start All
+    ▶&nbsp; Avvia tutto
   </button>
 </header>
 
@@ -228,18 +228,7 @@ _LAUNCHER_HTML = """\
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8080</div>
       <div class="text-xs text-gray-500" id="chunks-code">— chunks indexed</div>
-      <div class="flex gap-2 mt-auto">
-        <a href="http://localhost:8080" target="_blank"
-           class="btn flex-1 text-center bg-gray-800 hover:bg-gray-700 text-sm
-                  py-2 rounded-lg font-medium">
-          Open →
-        </a>
-        <button onclick="toggle('code')" id="btn-code"
-                class="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-sm
-                       py-2 rounded-lg font-medium">
-          Start
-        </button>
-      </div>
+      <div class="mt-auto" id="actions-code"></div>
     </div>
 
     <!-- Doc Intelligence -->
@@ -260,18 +249,7 @@ _LAUNCHER_HTML = """\
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8081</div>
       <div class="text-xs text-gray-500" id="chunks-doc">— chunks indexed</div>
-      <div class="flex gap-2 mt-auto">
-        <a href="http://localhost:8081" target="_blank"
-           class="btn flex-1 text-center bg-gray-800 hover:bg-gray-700 text-sm
-                  py-2 rounded-lg font-medium">
-          Open →
-        </a>
-        <button onclick="toggle('doc')" id="btn-doc"
-                class="btn flex-1 bg-cyan-700 hover:bg-cyan-600 text-sm
-                       py-2 rounded-lg font-medium">
-          Start
-        </button>
-      </div>
+      <div class="mt-auto" id="actions-doc"></div>
     </div>
 
     <!-- Mentor Intelligence -->
@@ -292,18 +270,7 @@ _LAUNCHER_HTML = """\
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8082</div>
       <div class="text-xs text-gray-500" id="chunks-mentor">— chunks indexed</div>
-      <div class="flex gap-2 mt-auto">
-        <a href="http://localhost:8082" target="_blank"
-           class="btn flex-1 text-center bg-gray-800 hover:bg-gray-700 text-sm
-                  py-2 rounded-lg font-medium">
-          Open →
-        </a>
-        <button onclick="toggle('mentor')" id="btn-mentor"
-                class="btn flex-1 bg-pink-700 hover:bg-pink-600 text-sm
-                       py-2 rounded-lg font-medium">
-          Start
-        </button>
-      </div>
+      <div class="mt-auto" id="actions-mentor"></div>
     </div>
 
   </div>
@@ -315,126 +282,146 @@ _LAUNCHER_HTML = """\
 </footer>
 
 <script>
-// Per-module Stop button colors
-const BTN_START = {
-  code:   'btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-sm py-2 rounded-lg font-medium',
-  doc:    'btn flex-1 bg-cyan-700   hover:bg-cyan-600   text-sm py-2 rounded-lg font-medium',
-  mentor: 'btn flex-1 bg-pink-700  hover:bg-pink-600   text-sm py-2 rounded-lg font-medium',
+const PORTS  = { code:8080, doc:8081, mentor:8082 };
+const COLORS = {
+  code:   { launch:'bg-indigo-700 hover:bg-indigo-600' },
+  doc:    { launch:'bg-cyan-700   hover:bg-cyan-600'   },
+  mentor: { launch:'bg-pink-700   hover:bg-pink-600'   },
 };
-const BTN_STOP = 'btn flex-1 bg-gray-700 hover:bg-red-800 text-sm py-2 rounded-lg font-medium';
 
+// ── Render the action area for a card ─────────────────────────────────────
+function renderActions(key, running, loading) {
+  const el   = document.getElementById('actions-' + key);
+  const port = PORTS[key];
+  if (!el) return;
+
+  if (loading) {
+    el.innerHTML = `
+      <button disabled
+              class="btn w-full bg-gray-700 text-gray-400 text-sm py-2.5 rounded-xl font-medium cursor-wait">
+        Avvio in corso…
+      </button>`;
+    return;
+  }
+
+  if (running) {
+    // Online: big Open + small Stop
+    el.innerHTML = `
+      <div class="flex gap-2">
+        <a href="http://localhost:${port}" target="_blank"
+           class="btn flex-1 text-center bg-gray-700 hover:bg-gray-600 text-sm
+                  py-2.5 rounded-xl font-semibold">
+          Apri →
+        </a>
+        <button onclick="stopModule('${key}')" title="Ferma il server"
+                class="btn px-3 bg-gray-800 hover:bg-red-900 text-gray-400 hover:text-red-300
+                       text-base rounded-xl transition" style="min-width:40px">
+          ■
+        </button>
+      </div>`;
+  } else {
+    // Offline: single launch button
+    el.innerHTML = `
+      <button onclick="launchModule('${key}')"
+              class="btn w-full ${COLORS[key].launch} text-sm py-2.5 rounded-xl font-semibold">
+        ▶ Avvia
+      </button>`;
+  }
+}
+
+// ── Poll /api/status and update all cards ──────────────────────────────────
 async function poll() {
   try {
-    const res  = await fetch('/api/status');
-    const data = await res.json();
+    const data = await (await fetch('/api/status')).json();
     let allOk  = true;
-
     for (const [key, s] of Object.entries(data)) {
       const dot   = document.getElementById('dot-'    + key);
       const label = document.getElementById('label-'  + key);
-      const btn   = document.getElementById('btn-'    + key);
       const chnk  = document.getElementById('chunks-' + key);
-
       if (!dot) continue;
+
+      // Only update actions if not mid-launch (loading spinner)
+      const actEl = document.getElementById('actions-' + key);
+      const busy  = actEl && actEl.querySelector('button[disabled]');
 
       if (s.running) {
         dot.className     = 'w-2 h-2 rounded-full bg-green-400';
         label.textContent = '● online';
         label.className   = 'text-xs text-green-400';
-        btn.textContent   = 'Stop';
-        btn.className     = BTN_STOP;
         chnk.textContent  = s.chunks + ' chunks indexed';
+        if (!busy) renderActions(key, true, false);
       } else {
         dot.className     = 'w-2 h-2 rounded-full bg-gray-600';
         label.textContent = '○ offline';
         label.className   = 'text-xs text-gray-500';
-        btn.textContent   = 'Start';
-        btn.className     = BTN_START[key];
         chnk.textContent  = '— chunks indexed';
+        if (!busy) renderActions(key, false, false);
         allOk = false;
       }
     }
     document.getElementById('footer-status').textContent =
-      allOk ? 'All modules online ✓' : 'Some modules offline';
+      allOk ? 'Tutti i moduli online ✓' : 'Alcuni moduli offline';
   } catch(e) {
-    document.getElementById('footer-status').textContent = 'Launcher error: ' + e.message;
+    document.getElementById('footer-status').textContent = 'Errore launcher: ' + e.message;
   }
 }
 
-async function toggle(key) {
-  const btn      = document.getElementById('btn-' + key);
-  const starting = btn.textContent.trim() === 'Start';
-  btn.disabled   = true;
-  btn.textContent = starting ? 'Starting…' : 'Stopping…';
+// ── Launch: start server + open browser when ready ────────────────────────
+async function launchModule(key) {
+  renderActions(key, false, true);   // show spinner
 
+  // Call start API
   try {
-    const res  = await fetch('/api/' + (starting ? 'start' : 'stop') + '/' + key,
-                             { method: 'POST' });
+    const res  = await fetch('/api/start/' + key, { method:'POST' });
     const data = await res.json();
-
     if (data.status === 'error') {
-      // Show error in footer and re-enable button immediately
       document.getElementById('footer-status').textContent =
-        '⚠ ' + key + ': ' + (data.detail || 'unknown error');
-      btn.textContent = 'Start';
-      btn.className   = BTN_START[key];
-      btn.disabled    = false;
+        '⚠ ' + key + ': ' + (data.detail || 'errore sconosciuto');
+      renderActions(key, false, false);
       return;
     }
   } catch(e) {
     document.getElementById('footer-status').textContent = 'API error: ' + e.message;
-    btn.disabled = false;
+    renderActions(key, false, false);
     return;
   }
 
-  // Poll until server is up (or 15s timeout) — break early when detected
-  for (let i = 0; i < 15; i++) {
+  // Poll until online (max 20s), then open browser
+  for (let i = 0; i < 20; i++) {
     await new Promise(r => setTimeout(r, 1000));
     try {
       const st = await (await fetch('/api/status')).json();
-      const s  = st[key];
-      if (starting && s.running) {
-        // Server is up — update UI and stop waiting
-        btn.disabled  = false;
-        btn.textContent = 'Stop';
-        btn.className   = BTN_STOP;
+      if (st[key] && st[key].running) {
+        renderActions(key, true, false);
+        // Update dot/label immediately
         document.getElementById('dot-'    + key).className   = 'w-2 h-2 rounded-full bg-green-400';
         document.getElementById('label-'  + key).textContent = '● online';
         document.getElementById('label-'  + key).className   = 'text-xs text-green-400';
-        document.getElementById('chunks-' + key).textContent = s.chunks + ' chunks indexed';
-        document.getElementById('footer-status').textContent = 'All modules online ✓';
-        return;
-      }
-      if (!starting && !s.running) {
-        // Server stopped
-        btn.disabled    = false;
-        btn.textContent = 'Start';
-        btn.className   = BTN_START[key];
-        document.getElementById('dot-'   + key).className   = 'w-2 h-2 rounded-full bg-gray-600';
-        document.getElementById('label-' + key).textContent = '○ offline';
-        document.getElementById('label-' + key).className   = 'text-xs text-gray-500';
+        document.getElementById('chunks-' + key).textContent = st[key].chunks + ' chunks indexed';
+        // Open browser
+        window.open('http://localhost:' + PORTS[key], '_blank');
         return;
       }
     } catch {}
   }
-  // Timeout — re-enable button and let background poll sort it out
-  btn.disabled = false;
-  await poll();
+  // Timeout
+  renderActions(key, false, false);
+  document.getElementById('footer-status').textContent =
+    '⚠ ' + key + ': timeout — il server non risponde. Prova ad aprirlo manualmente.';
 }
 
-async function startAll() {
-  const res  = await fetch('/api/start-all', { method: 'POST' });
-  const data = await res.json();
-  // Show any errors in footer
-  const errors = Object.entries(data).filter(([,v]) => v.status === 'error');
-  if (errors.length) {
-    document.getElementById('footer-status').textContent =
-      '⚠ Errors: ' + errors.map(([k,v]) => k + ': ' + v.detail).join(' | ');
-  }
-  for (let i = 0; i < 15; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    await poll();
-  }
+// ── Stop ──────────────────────────────────────────────────────────────────
+async function stopModule(key) {
+  await fetch('/api/stop/' + key, { method:'POST' });
+  renderActions(key, false, false);
+  document.getElementById('dot-'   + key).className   = 'w-2 h-2 rounded-full bg-gray-600';
+  document.getElementById('label-' + key).textContent = '○ offline';
+  document.getElementById('label-' + key).className   = 'text-xs text-gray-500';
+}
+
+// ── Launch All ────────────────────────────────────────────────────────────
+async function launchAll() {
+  for (const key of ['code','doc','mentor']) launchModule(key);
 }
 
 // Boot
