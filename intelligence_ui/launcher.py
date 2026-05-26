@@ -289,9 +289,6 @@ const COLORS = {
   mentor: { launch:'bg-pink-700   hover:bg-pink-600'   },
 };
 
-// Moduli in fase di avvio — il browser si apre solo quando il server è pronto
-const _launching = new Set();
-
 // ── Render the action area for a card ─────────────────────────────────────
 function renderActions(key, running) {
   const el   = document.getElementById('actions-' + key);
@@ -299,13 +296,13 @@ function renderActions(key, running) {
   if (!el) return;
 
   if (running) {
-    // Online: apri UI + piccolo Stop
+    // Online: Apri + Stop
     el.innerHTML = `
       <div class="flex gap-2">
         <a href="http://localhost:${port}" target="_blank"
            class="btn flex-1 text-center ${COLORS[key].launch} text-sm
                   py-2.5 rounded-xl font-semibold">
-          ▶ Avvia
+          Apri →
         </a>
         <button onclick="stopModule('${key}')" title="Ferma il server"
                 class="btn px-3 bg-gray-800 hover:bg-red-900 text-gray-400 hover:text-red-300
@@ -313,32 +310,31 @@ function renderActions(key, running) {
           ■
         </button>
       </div>`;
-  } else if (_launching.has(key)) {
-    // Avvio in corso: spinner — il browser si aprirà automaticamente quando online
-    el.innerHTML = `
-      <div class="block w-full text-center bg-gray-800 text-sm py-2.5 rounded-xl
-                  font-semibold text-gray-400 dot-pulse">
-        ⏳ Avvio in corso…
-      </div>`;
   } else {
-    // Offline: bottone che avvia il server
+    // Offline: Start + Open (open funziona sempre, start avvia il processo)
     el.innerHTML = `
-      <button onclick="launchModule('${key}')"
-              class="btn block w-full text-center bg-gray-700 hover:bg-gray-600 text-sm
-                     py-2.5 rounded-xl font-semibold">
-        ▶ Avvia
-      </button>`;
+      <div class="flex gap-2">
+        <button onclick="startModule('${key}')"
+                class="btn flex-1 text-center bg-gray-700 hover:bg-gray-600 text-sm
+                       py-2.5 rounded-xl font-semibold">
+          ▶ Start
+        </button>
+        <a href="http://localhost:${port}" target="_blank"
+           title="Apri nel browser (avvia prima il server)"
+           class="btn px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white
+                  text-sm rounded-xl transition flex items-center" style="min-width:56px">
+          Apri →
+        </a>
+      </div>`;
   }
 }
 
-// ── Launch singolo modulo ─────────────────────────────────────────────────
-// 1. Aggiunge key a _launching → mostra spinner
-// 2. Avvia il server in background (fire-and-forget)
-// 3. Il poll() apre il browser NON APPENA il server è online
-function launchModule(key) {
-  _launching.add(key);
-  renderActions(key, false);
-  fetch('/api/start/' + key, { method: 'POST' }).catch(() => {});
+// ── Start singolo modulo (fire-and-forget) ────────────────────────────────
+async function startModule(key) {
+  const btn = document.querySelector('#actions-' + key + ' button');
+  if (btn) { btn.textContent = '⏳…'; btn.disabled = true; }
+  await fetch('/api/start/' + key, { method: 'POST' }).catch(() => {});
+  // Il poll aggiornerà lo stato entro 4s
 }
 
 // ── Poll /api/status and update all cards ──────────────────────────────────
@@ -357,19 +353,13 @@ async function poll() {
         label.textContent = '● online';
         label.className   = 'text-xs text-green-400';
         chnk.textContent  = s.chunks + ' chunks indexed';
-        // Server appena diventato online dopo un launchModule → apri browser
-        if (_launching.has(key)) {
-          _launching.delete(key);
-          window.open('http://localhost:' + PORTS[key], '_blank');
-        }
         renderActions(key, true);
       } else {
         dot.className     = 'w-2 h-2 rounded-full bg-gray-600';
         label.textContent = '○ offline';
         label.className   = 'text-xs text-gray-500';
         chnk.textContent  = '— chunks indexed';
-        // Non toccare il bottone se stiamo aspettando l'avvio
-        if (!_launching.has(key)) renderActions(key, false);
+        renderActions(key, false);
         allOk = false;
       }
     }
@@ -383,16 +373,15 @@ async function poll() {
 // ── Stop ──────────────────────────────────────────────────────────────────
 async function stopModule(key) {
   await fetch('/api/stop/' + key, { method:'POST' });
-  _launching.delete(key);
   renderActions(key, false);
   document.getElementById('dot-'   + key).className   = 'w-2 h-2 rounded-full bg-gray-600';
   document.getElementById('label-' + key).textContent = '○ offline';
   document.getElementById('label-' + key).className   = 'text-xs text-gray-500';
 }
 
-// ── Launch All ────────────────────────────────────────────────────────────
+// ── Start All ─────────────────────────────────────────────────────────────
 function launchAll() {
-  for (const key of Object.keys(PORTS)) launchModule(key);
+  for (const key of Object.keys(PORTS)) startModule(key);
 }
 
 // Boot

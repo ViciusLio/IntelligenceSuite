@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.15] — 2026-05-26
+
+### Fixed
+- Launcher UX reverted to reliable **Start + Apri →** split per card (offline state).
+  `window.open()` inside `setInterval` (the poll loop) is silently blocked by browser
+  popup blockers — auto-opening the browser on poll was never going to work reliably.
+  - **Offline** → **▶ Start** (starts server fire-and-forget) + **Apri →** (`<a href>`, always works)
+  - **Online** → **Apri →** (colored, opens chat) + **■** stop button
+  - Header **▶ Avvia tutto** starts all three servers in background
+
+---
+
 ## [0.2.14] — 2026-05-26
 
 ### Fixed
