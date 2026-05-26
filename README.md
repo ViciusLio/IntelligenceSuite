@@ -35,16 +35,14 @@ ollama pull qwen2.5-coder:7b      # generation model (or any other)
 ```bash
 pip install intelligence-suite
 
-# Run all commands from the same working directory —
-# ChromaDB persists data to .chroma/ relative to where you run the commands.
-
 ci-parse /path/to/your/repo       # parse → chunks.jsonl        (seconds)
-ci-embed                           # embed → .chroma/            (one-time, ~20-40 min CPU)
+ci-embed                           # embed → ChromaDB            (one-time, ~20-40 min CPU)
 ci-serve                           # REST API + Chat UI → http://localhost:8080
 ```
 
 > **`ci-embed` is slow the first time** (every chunk is sent to the embedding model).
-> ChromaDB persists the result to `.chroma/` — subsequent server restarts are **instant**.
+> ChromaDB persists the result to **`~/.intelligence_suite/chroma`** (absolute path — safe
+> to run from any working directory). Subsequent server restarts are **instant**.
 > Run `ci-embed --incremental` to re-index only new or changed chunks.
 
 ### Chat UI — open your browser
@@ -319,18 +317,19 @@ to query your codebase in natural language.
 ### CLI quickstart
 
 ```bash
-# ── Step 1: index (run once from your working directory) ──────────────────
+# ── Step 1: index (run once, from any directory) ──────────────────────────
 ci-parse /path/to/repo               # → chunks.jsonl           (seconds)
-ci-embed                              # → .chroma/               (slow, one-time)
+ci-embed                              # → ~/.intelligence_suite/chroma  (slow, one-time)
 
 # Next time the code changes, only re-embed new chunks:
 ci-embed --incremental
 
-# ── Step 2: serve (instant — data already in .chroma/) ───────────────────
+# ── Step 2: serve (instant — data already in ChromaDB) ───────────────────
 ci-serve                              # http://localhost:8080
 
 # ── Step 3: use the chat UI or REST API ──────────────────────────────────
 # Open http://localhost:8080 in your browser  ← streaming chat UI
+# Suggestion pills adapt to the module (Code / Doc / Mentor) automatically.
 
 # Or query via curl:
 curl -X POST http://localhost:8080/api/v1/query \
@@ -338,9 +337,9 @@ curl -X POST http://localhost:8080/api/v1/query \
   -d '{"question": "Where is authentication handled?"}'
 ```
 
-> **Important:** run `ci-parse`, `ci-embed`, and `ci-serve` from the **same working directory**.
-> ChromaDB stores its data in `.chroma/` relative to where the commands are executed.
-> If the server can't find your chunks (shows 0 chunks), check that you are in the right folder.
+> ChromaDB data is stored in **`~/.intelligence_suite/chroma`** (absolute path, resolved at
+> startup). You can run commands from any directory — the data will always be found.
+> Override with `CHROMA_PERSIST_DIR=/custom/path` in `.env` if needed.
 
 ### Python API
 
@@ -380,9 +379,9 @@ Ingests company documents across multiple formats with a 3-level PDF parsing str
 ### CLI quickstart
 
 ```bash
-# ── Step 1: index (run once from your working directory) ──────────────────
+# ── Step 1: index (run once, from any directory) ──────────────────────────
 di-ingest /path/to/docs              # → doc_chunks.jsonl        (seconds)
-di-embed                              # → .chroma/               (slow, one-time)
+di-embed                              # → ~/.intelligence_suite/chroma  (slow, one-time)
 di-embed --incremental               # re-index only new files
 
 # ── Step 2: serve (instant) ───────────────────────────────────────────────
@@ -636,18 +635,25 @@ The LLM will automatically respond in the language of the question — no extra 
 
 > **Note:** switching embedding model requires re-indexing from scratch — the vector
 > dimensions may change (384 → 768) and ChromaDB will reject mixed-dimension collections.
-> Delete `.chroma/` before re-running `ci-embed` with a new model.
+> Delete the data directory before re-running `ci-embed` with a new model:
+> ```bash
+> # Linux / macOS
+> rm -rf ~/.intelligence_suite/chroma
+> # Windows (PowerShell)
+> Remove-Item -Recurse -Force "$HOME\.intelligence_suite\chroma"
+> ```
 
 ### Vector store
 
 | Store | Status | Notes |
 |---|---|---|
-| **ChromaDB** | ✅ Default | Embedded — runs inside the Python process, persists to `.chroma/` |
+| **ChromaDB** | ✅ Default | Embedded — runs inside the Python process, persists to `~/.intelligence_suite/chroma` |
 | **pgvector** | 🔶 v0.2 | Enterprise, multi-tenant, PostgreSQL-native |
 | **Neo4j (Graph)** | 🔶 v0.3 | Code call graph, import graph, doc cross-references — hybrid retrieval |
 
 > ChromaDB runs **embedded** — no separate server or Docker container needed.  
-> Data is persisted to `.chroma/` automatically and survives restarts.
+> Data is persisted to `~/.intelligence_suite/chroma` automatically and survives restarts.  
+> Override the path with `CHROMA_PERSIST_DIR=/your/path` in `.env`.
 
 ---
 
@@ -660,7 +666,9 @@ The LLM will automatically respond in the language of the question — no extra 
 | **Deterministic IDs** | `domain::type::locator` — safe to re-index, dedup-friendly |
 | **3-level PDF parsing** | pdfplumber → OCR → raw binary — never silently drops a page |
 | **Fail-safe ingestion** | One broken file never crashes the pipeline |
+| **Fail-loud embedding** | `OllamaEmbedder` raises immediately if unreachable — never stores zero vectors |
 | **Graceful escalation** | Stays local until similarity drops below threshold, then escalates to Claude API |
+| **CORS-enabled API** | All three FastAPI servers include `CORSMiddleware` — embeddable in any dashboard |
 | **Modular** | Each module is independently installable and deployable |
 
 ---
@@ -690,7 +698,9 @@ OLLAMA_EMBED_MODEL=nomic-embed-text
 
 # Vector store
 VECTOR_STORE=chromadb
-CHROMA_PERSIST_DIR=./.chroma
+# Default path: ~/.intelligence_suite/chroma  (absolute — CWD-independent)
+# Uncomment to override:
+# CHROMA_PERSIST_DIR=/custom/path/chroma
 
 # Escalation: fallback to Claude when confidence < threshold
 ESCALATION_THRESHOLD=0.70
@@ -787,14 +797,25 @@ python -m MentorIntelligence.mentor_server  # instead of mi-serve
 
 ### Ollama not reachable during embedding
 
-If you see `OllamaEmbedder: cannot reach ... — returning zero vector`, Ollama is not running.
+If `ci-embed` (or `di-embed`) raises a `RuntimeError` like:
+
+```
+OllamaEmbedder: cannot reach http://localhost:11434 (model=nomic-embed-text).
+  Fix 1: ollama serve && ollama pull nomic-embed-text
+  Fix 2: set EMBED_BACKEND=st in .env (offline, no server required)
+```
+
+Ollama is not running or the model is not pulled. The embedder **fails loudly** (no silent
+zero-vector storage) so you always know immediately when there is a problem.
+
+**Fix 1 — Start Ollama:**
 
 ```bash
 ollama serve                       # start Ollama
-ollama pull nomic-embed-text       # pull the embedding model if missing
+ollama pull nomic-embed-text       # pull the embedding model if not present
 ```
 
-Or switch to the CPU-only offline embedder (no Ollama needed):
+**Fix 2 — Switch to the CPU-only offline embedder (no Ollama needed):**
 
 ```bash
 pip install "intelligence-suite[st]"
@@ -811,8 +832,11 @@ This can happen if you ran `python -m build` inside the repo before indexing —
 the `build/lib/` directory gets indexed alongside the real sources.
 
 ```bash
-# Clean the build artefacts, then re-index
-rm -rf build/ dist/ .chroma/
+# Clean build artefacts and the ChromaDB data directory, then re-index
+rm -rf build/ dist/
+rm -rf ~/.intelligence_suite/chroma          # Linux / macOS
+# Remove-Item -Recurse -Force "$HOME\.intelligence_suite\chroma"  # Windows PowerShell
+
 ci-parse /path/to/repo
 ci-embed
 ```
@@ -850,11 +874,11 @@ IntelligenceSuite/
 
 | Version | Milestone | Enterprise target |
 |---|---|---|
-| `0.1.x` | CodeIntelligence · DocIntelligence · MentorIntelligence · ChromaDB | **Current — POC ready** |
-| `0.2.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
-| `0.3.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
-| `0.4.0` | vLLM GPU serving · streaming responses · OpenTelemetry tracing · Prometheus metrics | Teams 50+, GPU cluster |
-| `0.5.0` | GitHub/GitLab webhook · incremental re-index · WebSocket push | Real-time knowledge base |
+| `0.2.x` | Streaming chat UI · CORS · absolute ChromaDB path · zero-vector protection · dynamic suggestions | **Current — POC ready** |
+| `0.3.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
+| `0.4.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
+| `0.5.0` | vLLM GPU serving · OpenTelemetry tracing · Prometheus metrics | Teams 50+, GPU cluster |
+| `0.6.0` | GitHub/GitLab webhook · incremental re-index · WebSocket push | Real-time knowledge base |
 | `1.0.0` | Kubernetes · horizontal scaling · SLA-tested · full observability | Production enterprise |
 
 ### Why graph in v0.3?
