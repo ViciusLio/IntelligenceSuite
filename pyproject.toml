@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligence-suite"
-version = "0.2.13"
+version = "0.2.14"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
 license = "MIT"

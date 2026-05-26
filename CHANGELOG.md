@@ -10,6 +10,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.14] — 2026-05-26
+
+### Fixed
+- Launcher **▶ Avvia** now works correctly end-to-end:
+  - Click → server starts in background, card shows **⏳ Avvio in corso…** spinner
+  - The status poll (every 4 s) detects when the server is online
+  - Browser opens automatically **only when the server is ready** — zero "connection refused"
+  - Previously the browser opened immediately before the server was up, causing ERR_CONNECTION_REFUSED every time
+
+---
+
 ## [0.2.13] — 2026-05-26
 
 ### Fixed
