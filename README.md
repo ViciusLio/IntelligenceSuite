@@ -696,6 +696,85 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 ---
 
+## Troubleshooting
+
+### `ci-serve` / `di-serve` / `mi-serve` not found after install
+
+On Windows, pip installs CLI scripts in a user-level Scripts folder that may not be on `PATH`.
+You will see this warning during `pip install`:
+
+```
+WARNING: The scripts ci-serve.exe, ci-parse.exe ... are installed in
+'C:\Users\<you>\AppData\Roaming\Python\Python3xx\Scripts'
+which is not on PATH.
+```
+
+**Fix — add the Scripts folder to your PATH (run once in PowerShell):**
+
+```powershell
+$scripts = "$env:APPDATA\Python\$(python -c 'import sys; print(f\"Python{sys.version_info.major}{sys.version_info.minor}\")')\Scripts"
+$current = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($current -notlike "*$scripts*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$current;$scripts", "User")
+    Write-Host "PATH updated — reopen your terminal."
+}
+```
+
+Then **reopen your terminal** and `ci-serve` will work.
+
+**Quick fix without reopening (current session only):**
+
+```powershell
+$env:PATH += ";$env:APPDATA\Python\$(python -c 'import sys; print(f\"Python{sys.version_info.major}{sys.version_info.minor}\")')\Scripts"
+```
+
+**Alternative — run without modifying PATH:**
+
+```powershell
+python -m CodeIntelligence.rag_server   # instead of ci-serve
+python -m DocIntelligence.doc_server    # instead of di-serve
+python -m MentorIntelligence.mentor_server  # instead of mi-serve
+```
+
+---
+
+### Ollama not reachable during embedding
+
+If you see `OllamaEmbedder: cannot reach ... — returning zero vector`, Ollama is not running.
+
+```bash
+ollama serve                       # start Ollama
+ollama pull nomic-embed-text       # pull the embedding model if missing
+```
+
+Or switch to the CPU-only offline embedder (no Ollama needed):
+
+```bash
+pip install "intelligence-suite[st]"
+# set in .env:
+EMBED_BACKEND=st
+```
+
+---
+
+### ChromaDB DuplicateIDError on embed
+
+If `ci-embed` raises `DuplicateIDError`, your `chunks.jsonl` contains duplicate chunk IDs.
+This can happen if you ran `python -m build` inside the repo before indexing —
+the `build/lib/` directory gets indexed alongside the real sources.
+
+```bash
+# Clean the build artefacts, then re-index
+rm -rf build/ dist/ .chroma/
+ci-parse /path/to/repo
+ci-embed
+```
+
+From version `0.1.2` onwards, `parse_repo` automatically excludes `build/`, `dist/`,
+`venv/`, and other non-source directories.
+
+---
+
 ## Test suite
 
 ```bash
