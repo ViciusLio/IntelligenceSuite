@@ -595,6 +595,28 @@ Switch backend with a single env var — no code changes required.
 > Any OpenAI-compatible server works with `LLM_BACKEND=openai` or `vllm` by pointing
 > `OPENAI_BASE_URL` at the correct endpoint.
 
+### Per-module LLM routing
+
+Each module can use a **different LLM backend and model** independently.
+Set any combination of `CI_LLM_*`, `DI_LLM_*`, `MI_LLM_*` in `.env` — leave empty to fall back to the global `LLM_BACKEND`:
+
+```env
+# CodeIntelligence → vLLM GPU server with code-specialised model
+CI_LLM_BACKEND=openai
+CI_LLM_MODEL=codellama:34b
+CI_LLM_BASE_URL=http://gpu-server:8000/v1
+
+# DocIntelligence → local Mistral (better multilingual / Italian)
+DI_LLM_BACKEND=ollama
+DI_LLM_MODEL=mistral:7b
+
+# MentorIntelligence → Claude API (best pedagogical quality)
+MI_LLM_BACKEND=claude
+MI_LLM_MODEL=claude-sonnet-4-5
+```
+
+Any OpenAI-compatible endpoint (vLLM, Groq, Mistral AI, LM Studio, Azure…) works by setting `*_LLM_BACKEND=openai` and `*_LLM_BASE_URL` to the endpoint.
+
 ### Escalation
 
 When retrieval confidence < `ESCALATION_THRESHOLD` and `ANTHROPIC_API_KEY` is set,

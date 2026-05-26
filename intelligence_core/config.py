@@ -56,6 +56,26 @@ class Settings(BaseSettings):
         """Expand ~ and resolve to an absolute path so CWD never matters."""
         return str(Path(v).expanduser().resolve())
 
+    # ── Per-module LLM overrides ───────────────────────────────────────────────
+    # Leave empty to use the global LLM_BACKEND / OLLAMA_MODEL / OPENAI_* settings.
+    # Set any combination to route a specific module to a different backend or model.
+    #
+    # CodeIntelligence  (CI_LLM_*)
+    ci_llm_backend:  str = ""   # e.g. "ollama" | "openai" | "vllm" | "claude"
+    ci_llm_model:    str = ""   # e.g. "qwen2.5-coder:7b"
+    ci_llm_base_url: str = ""   # e.g. "http://gpu-server:8000/v1"
+    ci_llm_api_key:  str = ""
+    # DocIntelligence   (DI_LLM_*)
+    di_llm_backend:  str = ""   # e.g. "ollama" | "openai" | "claude"
+    di_llm_model:    str = ""   # e.g. "mistral:7b"
+    di_llm_base_url: str = ""
+    di_llm_api_key:  str = ""
+    # MentorIntelligence (MI_LLM_*)
+    mi_llm_backend:  str = ""   # e.g. "claude"
+    mi_llm_model:    str = ""   # e.g. "claude-sonnet-4-5"
+    mi_llm_base_url: str = ""
+    mi_llm_api_key:  str = ""
+
     # ── Server ports (one per module, avoids conflicts when running together) ──
     ci_port: int = 8080   # CodeIntelligence
     di_port: int = 8081   # DocIntelligence

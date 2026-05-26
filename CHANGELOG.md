@@ -10,6 +10,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.3] — 2026-05-26
+
+### Added
+- **Per-module LLM routing** — each module (CodeIntelligence, DocIntelligence,
+  MentorIntelligence) can now use a different LLM backend, model, and endpoint
+  independently via env vars:
+  - `CI_LLM_BACKEND`, `CI_LLM_MODEL`, `CI_LLM_BASE_URL`, `CI_LLM_API_KEY`
+  - `DI_LLM_BACKEND`, `DI_LLM_MODEL`, `DI_LLM_BASE_URL`, `DI_LLM_API_KEY`
+  - `MI_LLM_BACKEND`, `MI_LLM_MODEL`, `MI_LLM_BASE_URL`, `MI_LLM_API_KEY`
+  All variables are optional and fall back to the global `LLM_BACKEND` settings.
+  Any OpenAI-compatible endpoint (vLLM, Groq, LM Studio, Azure…) works via
+  `*_LLM_BACKEND=openai` + `*_LLM_BASE_URL`.
+- `get_module_llm_provider(module)` factory in `intelligence_core/llm/__init__.py`
+- `get_llm_provider()` now accepts `model`, `base_url`, `api_key` keyword overrides
+- `.env.example` updated with documented per-module routing examples
+- `docs/INTELLIGENCESUITE_GUIDE.md` — new comprehensive project guide added to `docs/`
+
+### Docs
+- README: new "Per-module LLM routing" section with full configuration example
+
+---
+
 ## [0.2.2] — 2026-05-26
 
 ### Docs

@@ -86,7 +86,13 @@ def build_app() -> FastAPI:
     orchestrator = MentorOrchestrator(code_retriever, doc_retriever, mentor_retriever)
 
     base_retriever = Retriever(embedder=embedder, store=ChromaStore("mentor_intelligence"))
-    app = create_app(title="MentorIntelligence Server", retriever=base_retriever, module="mentor")
+    from intelligence_core.llm import get_module_llm_provider
+    app = create_app(
+        title="MentorIntelligence Server",
+        retriever=base_retriever,
+        module="mentor",
+        llm_provider=get_module_llm_provider("mi"),
+    )
 
     @app.post("/api/v1/mentor/onboard", response_model=OnboardResponse)
     def onboard(req: OnboardRequest):
