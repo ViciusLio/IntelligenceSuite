@@ -10,6 +10,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.3] — 2026-05-26
+
+### Fixed
+- `ChromaStore.add()` now deduplicates chunk IDs before calling ChromaDB `upsert`.
+  Prevents `DuplicateIDError` even if upstream parsers produce duplicate IDs.
+
+---
+
 ## [0.1.2] — 2026-05-26
 
 ### Fixed
