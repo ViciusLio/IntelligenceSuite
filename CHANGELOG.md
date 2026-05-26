@@ -10,6 +10,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.16] — 2026-05-26
+
+### Fixed
+- Launcher JS completely rewritten back to the v0.2.8 static-HTML approach:
+  - **Static buttons** in each card — `Open →` (`<a href>`, always works) and `Start/Stop`
+    (single `<button id="btn-{key}">` toggled by poll)
+  - **`toggle(key)`** — fire-and-forget POST, shows `⏳ Avvio…` while waiting for the
+    API response only, then re-enables and calls `poll()` once. No blocking loop.
+  - **`poll()`** — updates dot, label, chunks and button text/class via constants
+    (no regex, no innerHTML replacement). Skips disabled buttons to avoid mid-action flicker.
+  - **`startAll()`** — single POST to `/api/start-all`, then `poll()`
+  - Removed all `window.open` / `_launching` / dynamic `renderActions` complexity
+
+---
+
 ## [0.2.15] — 2026-05-26
 
 ### Fixed

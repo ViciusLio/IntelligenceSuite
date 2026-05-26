@@ -199,23 +199,22 @@ _LAUNCHER_HTML = """\
       <p class="text-xs text-gray-500">On-premise knowledge retrieval · Local AI</p>
     </div>
   </div>
-  <button onclick="launchAll()"
+  <button onclick="startAll()"
           class="btn bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 rounded-xl
                  text-sm font-semibold flex items-center gap-2">
-    ▶&nbsp; Avvia tutto
+    ▶&nbsp; Start All
   </button>
 </header>
 
 <!-- Cards grid -->
 <main class="flex-1 flex items-center justify-center px-8 py-12">
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl" id="cards">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
 
     <!-- Code Intelligence -->
-    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-5"
-         id="card-code">
+    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-5">
       <div class="flex items-start justify-between">
         <div class="text-4xl">💻</div>
-        <div class="flex items-center gap-2" id="badge-code">
+        <div class="flex items-center gap-2">
           <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-code"></div>
           <span class="text-xs text-gray-500" id="label-code">checking…</span>
         </div>
@@ -228,15 +227,25 @@ _LAUNCHER_HTML = """\
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8080</div>
       <div class="text-xs text-gray-500" id="chunks-code">— chunks indexed</div>
-      <div class="mt-auto" id="actions-code"></div>
+      <div class="flex gap-2 mt-auto">
+        <a href="http://localhost:8080" target="_blank"
+           class="btn flex-1 text-center bg-gray-800 hover:bg-gray-700 text-sm
+                  py-2 rounded-lg font-medium">
+          Open →
+        </a>
+        <button onclick="toggle('code')" id="btn-code"
+                class="btn flex-1 bg-indigo-700 hover:bg-indigo-600 text-sm
+                       py-2 rounded-lg font-medium">
+          Start
+        </button>
+      </div>
     </div>
 
     <!-- Doc Intelligence -->
-    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-5"
-         id="card-doc">
+    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-5">
       <div class="flex items-start justify-between">
         <div class="text-4xl">📄</div>
-        <div class="flex items-center gap-2" id="badge-doc">
+        <div class="flex items-center gap-2">
           <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-doc"></div>
           <span class="text-xs text-gray-500" id="label-doc">checking…</span>
         </div>
@@ -249,15 +258,25 @@ _LAUNCHER_HTML = """\
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8081</div>
       <div class="text-xs text-gray-500" id="chunks-doc">— chunks indexed</div>
-      <div class="mt-auto" id="actions-doc"></div>
+      <div class="flex gap-2 mt-auto">
+        <a href="http://localhost:8081" target="_blank"
+           class="btn flex-1 text-center bg-gray-800 hover:bg-gray-700 text-sm
+                  py-2 rounded-lg font-medium">
+          Open →
+        </a>
+        <button onclick="toggle('doc')" id="btn-doc"
+                class="btn flex-1 bg-cyan-700 hover:bg-cyan-600 text-sm
+                       py-2 rounded-lg font-medium">
+          Start
+        </button>
+      </div>
     </div>
 
     <!-- Mentor Intelligence -->
-    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-5"
-         id="card-mentor">
+    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-5">
       <div class="flex items-start justify-between">
         <div class="text-4xl">🎓</div>
-        <div class="flex items-center gap-2" id="badge-mentor">
+        <div class="flex items-center gap-2">
           <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-mentor"></div>
           <span class="text-xs text-gray-500" id="label-mentor">checking…</span>
         </div>
@@ -270,7 +289,18 @@ _LAUNCHER_HTML = """\
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8082</div>
       <div class="text-xs text-gray-500" id="chunks-mentor">— chunks indexed</div>
-      <div class="mt-auto" id="actions-mentor"></div>
+      <div class="flex gap-2 mt-auto">
+        <a href="http://localhost:8082" target="_blank"
+           class="btn flex-1 text-center bg-gray-800 hover:bg-gray-700 text-sm
+                  py-2 rounded-lg font-medium">
+          Open →
+        </a>
+        <button onclick="toggle('mentor')" id="btn-mentor"
+                class="btn flex-1 bg-pink-700 hover:bg-pink-600 text-sm
+                       py-2 rounded-lg font-medium">
+          Start
+        </button>
+      </div>
     </div>
 
   </div>
@@ -282,106 +312,70 @@ _LAUNCHER_HTML = """\
 </footer>
 
 <script>
-const PORTS  = { code:8080, doc:8081, mentor:8082 };
-const COLORS = {
-  code:   { launch:'bg-indigo-700 hover:bg-indigo-600' },
-  doc:    { launch:'bg-cyan-700   hover:bg-cyan-600'   },
-  mentor: { launch:'bg-pink-700   hover:bg-pink-600'   },
+// Classi fisse per i bottoni — niente regex
+const BTN_BASE = 'btn flex-1 text-sm py-2 rounded-lg font-medium';
+const BTN_STOP = BTN_BASE + ' bg-gray-700 hover:bg-red-900 text-gray-400 hover:text-red-300';
+const BTN_START = {
+  code:   BTN_BASE + ' bg-indigo-700 hover:bg-indigo-600',
+  doc:    BTN_BASE + ' bg-cyan-700 hover:bg-cyan-600',
+  mentor: BTN_BASE + ' bg-pink-700 hover:bg-pink-600',
 };
 
-// ── Render the action area for a card ─────────────────────────────────────
-function renderActions(key, running) {
-  const el   = document.getElementById('actions-' + key);
-  const port = PORTS[key];
-  if (!el) return;
-
-  if (running) {
-    // Online: Apri + Stop
-    el.innerHTML = `
-      <div class="flex gap-2">
-        <a href="http://localhost:${port}" target="_blank"
-           class="btn flex-1 text-center ${COLORS[key].launch} text-sm
-                  py-2.5 rounded-xl font-semibold">
-          Apri →
-        </a>
-        <button onclick="stopModule('${key}')" title="Ferma il server"
-                class="btn px-3 bg-gray-800 hover:bg-red-900 text-gray-400 hover:text-red-300
-                       text-base rounded-xl transition" style="min-width:40px">
-          ■
-        </button>
-      </div>`;
-  } else {
-    // Offline: Start + Open (open funziona sempre, start avvia il processo)
-    el.innerHTML = `
-      <div class="flex gap-2">
-        <button onclick="startModule('${key}')"
-                class="btn flex-1 text-center bg-gray-700 hover:bg-gray-600 text-sm
-                       py-2.5 rounded-xl font-semibold">
-          ▶ Start
-        </button>
-        <a href="http://localhost:${port}" target="_blank"
-           title="Apri nel browser (avvia prima il server)"
-           class="btn px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white
-                  text-sm rounded-xl transition flex items-center" style="min-width:56px">
-          Apri →
-        </a>
-      </div>`;
-  }
-}
-
-// ── Start singolo modulo (fire-and-forget) ────────────────────────────────
-async function startModule(key) {
-  const btn = document.querySelector('#actions-' + key + ' button');
-  if (btn) { btn.textContent = '⏳…'; btn.disabled = true; }
-  await fetch('/api/start/' + key, { method: 'POST' }).catch(() => {});
-  // Il poll aggiornerà lo stato entro 4s
-}
-
-// ── Poll /api/status and update all cards ──────────────────────────────────
+// ── Poll /api/status — aggiorna dot, label, chunks e testo bottone ──────────
 async function poll() {
   try {
     const data = await (await fetch('/api/status')).json();
-    let allOk  = true;
+    let allOk = true;
     for (const [key, s] of Object.entries(data)) {
       const dot   = document.getElementById('dot-'    + key);
       const label = document.getElementById('label-'  + key);
+      const btn   = document.getElementById('btn-'    + key);
       const chnk  = document.getElementById('chunks-' + key);
-      if (!dot) continue;
+      if (!dot || !btn || btn.disabled) continue;  // skip se mid-action
 
       if (s.running) {
         dot.className     = 'w-2 h-2 rounded-full bg-green-400';
         label.textContent = '● online';
         label.className   = 'text-xs text-green-400';
         chnk.textContent  = s.chunks + ' chunks indexed';
-        renderActions(key, true);
+        btn.textContent   = 'Stop';
+        btn.className     = BTN_STOP;
       } else {
         dot.className     = 'w-2 h-2 rounded-full bg-gray-600';
         label.textContent = '○ offline';
         label.className   = 'text-xs text-gray-500';
         chnk.textContent  = '— chunks indexed';
-        renderActions(key, false);
+        btn.textContent   = 'Start';
+        btn.className     = BTN_START[key];
         allOk = false;
       }
     }
     document.getElementById('footer-status').textContent =
       allOk ? 'Tutti i moduli online ✓' : 'Alcuni moduli offline';
   } catch(e) {
-    document.getElementById('footer-status').textContent = 'Errore launcher: ' + e.message;
+    document.getElementById('footer-status').textContent = 'Errore: ' + e.message;
   }
 }
 
-// ── Stop ──────────────────────────────────────────────────────────────────
-async function stopModule(key) {
-  await fetch('/api/stop/' + key, { method:'POST' });
-  renderActions(key, false);
-  document.getElementById('dot-'   + key).className   = 'w-2 h-2 rounded-full bg-gray-600';
-  document.getElementById('label-' + key).textContent = '○ offline';
-  document.getElementById('label-' + key).className   = 'text-xs text-gray-500';
+// ── Toggle Start/Stop — fire-and-forget, il poll aggiorna lo stato ──────────
+async function toggle(key) {
+  const btn     = document.getElementById('btn-' + key);
+  const isStart = btn.textContent.trim() === 'Start';
+  btn.disabled    = true;
+  btn.textContent = isStart ? '⏳ Avvio…' : '⏳ Stop…';
+  try {
+    await fetch('/api/' + (isStart ? 'start' : 'stop') + '/' + key, { method: 'POST' });
+  } catch(e) {
+    document.getElementById('footer-status').textContent = 'Errore: ' + e.message;
+  }
+  btn.disabled = false;
+  poll();
 }
 
-// ── Start All ─────────────────────────────────────────────────────────────
-function launchAll() {
-  for (const key of Object.keys(PORTS)) startModule(key);
+// ── Start All ────────────────────────────────────────────────────────────────
+async function startAll() {
+  try { await fetch('/api/start-all', { method: 'POST' }); } catch(e) {}
+  poll();
 }
 
 // Boot
