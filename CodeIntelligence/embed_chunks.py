@@ -31,17 +31,14 @@ def embed_chunks(
     incremental: bool = False,
     collection_name: str = COLLECTION_NAME,
 ) -> list[dict]:
-    """
-    Full pipeline step:
-      1. Read chunks from JSONL
-      2. Compute embeddings (Ollama / SentenceTransformer / Voyage)
-      3. Write updated JSONL
-      4. Upsert into ChromaDB — collection ready for ci-serve
+    """Full pipeline step: embed chunks and load into ChromaDB.
 
     Args:
         input_file:       JSONL file produced by ci-parse.
         output_file:      Destination JSONL (default: overwrite input).
-        incremental:      Skip chunks that already have an embedding.
+        incremental:      Compare chunk checksums with ChromaDB; only embed
+                          new or modified chunks and delete orphan IDs whose
+                          source files have been removed.
         collection_name:  ChromaDB collection (default: ``code_intelligence``).
     """
     output_file = output_file or input_file
@@ -54,7 +51,35 @@ def embed_chunks(
             if line:
                 chunks.append(chunk_from_jsonl(line))
 
-    to_embed = [c for c in chunks if not incremental or not c.get("embedding")]
+    # ── ChromaDB store (needed for both modes) ───────────────────────────────
+    from intelligence_core.store import ChromaStore
+    store = ChromaStore(collection_name=collection_name)
+
+    if incremental:
+        # Fetch {id: checksum} for all chunks currently in ChromaDB
+        chroma_checksums = store.get_checksums()
+
+        # Chunks to embed: new (not in ChromaDB) or changed (checksum differs)
+        to_embed = [
+            c for c in chunks
+            if chroma_checksums.get(c["id"]) != c.get("checksum", "")
+        ]
+
+        # Orphan IDs: exist in ChromaDB but no longer in the JSONL (file deleted)
+        jsonl_ids = {c["id"] for c in chunks}
+        orphan_ids = [id_ for id_ in chroma_checksums if id_ not in jsonl_ids]
+        if orphan_ids:
+            store.delete(orphan_ids)
+            print(f"  Rimossi {len(orphan_ids)} chunk orfani da ChromaDB")
+
+        skipped = len(chunks) - len(to_embed)
+        print(
+            f"  Incremental: {len(to_embed)}/{len(chunks)} chunk da (ri-)embeddare"
+            + (f", {skipped} invariati" if skipped else "")
+        )
+    else:
+        to_embed = chunks
+
     print(f"Embedding {len(to_embed)}/{len(chunks)} chunks...")
 
     batch_size = settings.embed_batch_size
@@ -74,16 +99,15 @@ def embed_chunks(
     print(f"JSONL saved: {output_file}")
 
     # ── Load into ChromaDB ───────────────────────────────────────────────────
-    from intelligence_core.store import ChromaStore
-    store = ChromaStore(collection_name=collection_name)
-    store.add(chunks)
+    if to_embed:
+        store.add(to_embed)   # upsert only new / changed chunks
     print(f"ChromaDB '{collection_name}': {store.count()} total chunks indexed")
 
     return chunks
 
 
 def incremental_update(input_file: Path, output_file: Path = None) -> list[dict]:
-    """Add embeddings only to chunks without one (incremental re-index)."""
+    """Add embeddings only to new/changed chunks (incremental re-index)."""
     return embed_chunks(input_file, output_file, incremental=True)
 
 
@@ -96,8 +120,13 @@ def main():
         help="JSONL file produced by ci-parse (default: chunks.jsonl)",
     )
     parser.add_argument("-o", "--output", help="Output JSONL (default: overwrites input)")
-    parser.add_argument("--incremental", action="store_true",
-                        help="Skip chunks that already have embeddings")
+    parser.add_argument(
+        "--incremental", action="store_true",
+        help=(
+            "Salta chunk già indicizzati con checksum invariato. "
+            "Rimuove da ChromaDB gli ID orfani (file eliminati)."
+        ),
+    )
     parser.add_argument("--collection", default=COLLECTION_NAME,
                         help=f"ChromaDB collection name (default: {COLLECTION_NAME})")
     args = parser.parse_args()

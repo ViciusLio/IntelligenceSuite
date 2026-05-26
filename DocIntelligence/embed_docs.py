@@ -28,18 +28,17 @@ def _warn_zero_embeddings(chunks: list[dict]) -> None:
 def embed_docs(
     input_file: Path,
     output_file: Path = None,
+    incremental: bool = False,
     collection_name: str = COLLECTION_NAME,
 ) -> list[dict]:
-    """
-    Full pipeline step:
-      1. Read doc chunks from JSONL
-      2. Compute embeddings
-      3. Write updated JSONL
-      4. Upsert into ChromaDB — collection ready for di-serve
+    """Full pipeline step: embed doc chunks and load into ChromaDB.
 
     Args:
         input_file:       JSONL file produced by di-ingest.
         output_file:      Destination JSONL (default: overwrite input).
+        incremental:      Compare chunk checksums with ChromaDB; only embed
+                          new or modified chunks and delete orphan IDs whose
+                          source files have been removed.
         collection_name:  ChromaDB collection (default: ``doc_intelligence``).
     """
     output_file = output_file or input_file
@@ -52,16 +51,43 @@ def embed_docs(
             if line:
                 chunks.append(chunk_from_jsonl(line))
 
-    print(f"Embedding {len(chunks)} chunks...")
+    # ── ChromaDB store ───────────────────────────────────────────────────────
+    from intelligence_core.store import ChromaStore
+    store = ChromaStore(collection_name=collection_name)
+
+    if incremental:
+        chroma_checksums = store.get_checksums()
+
+        to_embed = [
+            c for c in chunks
+            if chroma_checksums.get(c["id"]) != c.get("checksum", "")
+        ]
+
+        # Delete orphan IDs (file removed since last ingest)
+        jsonl_ids = {c["id"] for c in chunks}
+        orphan_ids = [id_ for id_ in chroma_checksums if id_ not in jsonl_ids]
+        if orphan_ids:
+            store.delete(orphan_ids)
+            print(f"  Rimossi {len(orphan_ids)} chunk orfani da ChromaDB")
+
+        skipped = len(chunks) - len(to_embed)
+        print(
+            f"  Incremental: {len(to_embed)}/{len(chunks)} chunk da (ri-)embeddare"
+            + (f", {skipped} invariati" if skipped else "")
+        )
+    else:
+        to_embed = chunks
+
+    print(f"Embedding {len(to_embed)}/{len(chunks)} chunks...")
     batch_size = settings.embed_batch_size
-    for i in range(0, len(chunks), batch_size):
-        batch      = chunks[i: i + batch_size]
+    for i in range(0, len(to_embed), batch_size):
+        batch      = to_embed[i: i + batch_size]
         embeddings = embedder.embed([c["text"] for c in batch])
         for chunk, emb in zip(batch, embeddings):
             chunk["embedding"] = emb
         print(f"  batch {i // batch_size + 1}: {len(batch)} chunks embedded")
 
-    _warn_zero_embeddings(chunks)
+    _warn_zero_embeddings(to_embed)
 
     # ── Write JSONL ──────────────────────────────────────────────────────────
     with output_file.open("w", encoding="utf-8") as f:
@@ -70,9 +96,8 @@ def embed_docs(
     print(f"JSONL saved: {output_file}")
 
     # ── Load into ChromaDB ───────────────────────────────────────────────────
-    from intelligence_core.store import ChromaStore
-    store = ChromaStore(collection_name=collection_name)
-    store.add(chunks)
+    if to_embed:
+        store.add(to_embed)
     print(f"ChromaDB '{collection_name}': {store.count()} total chunks indexed")
 
     return chunks
@@ -87,12 +112,20 @@ def main():
         help="JSONL file produced by di-ingest (default: doc_chunks.jsonl)",
     )
     parser.add_argument("-o", "--output", help="Output JSONL (default: overwrites input)")
+    parser.add_argument(
+        "--incremental", action="store_true",
+        help=(
+            "Salta chunk già indicizzati con checksum invariato. "
+            "Rimuove da ChromaDB gli ID orfani (file eliminati)."
+        ),
+    )
     parser.add_argument("--collection", default=COLLECTION_NAME,
                         help=f"ChromaDB collection name (default: {COLLECTION_NAME})")
     args = parser.parse_args()
     embed_docs(
         Path(args.input),
         Path(args.output) if args.output else None,
+        incremental=args.incremental,
         collection_name=args.collection,
     )
 

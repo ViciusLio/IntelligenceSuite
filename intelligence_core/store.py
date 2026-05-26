@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class VectorStore(Protocol):
     def add(self, chunks: list[dict]) -> None: ...
     def search(self, embedding: list[float], top_k: int, filters: dict = None) -> list[dict]: ...
+    def get_checksums(self) -> dict[str, str]: ...
     def delete(self, chunk_ids: list[str]) -> None: ...
     def count(self) -> int: ...
 
@@ -83,6 +84,20 @@ class ChromaStore:
                 "score":    1.0 - distance,
             })
         return chunks
+
+    def get_checksums(self) -> dict[str, str]:
+        """Returns {chunk_id: checksum} for all indexed chunks.
+
+        Used by incremental embed steps to skip chunks that haven't changed
+        and to detect orphan IDs whose source files were deleted.
+        """
+        result = self._col.get(include=["metadatas"])
+        if not result["ids"]:
+            return {}
+        return {
+            id_: (meta.get("checksum", "") if meta else "")
+            for id_, meta in zip(result["ids"], result["metadatas"])
+        }
 
     def delete(self, chunk_ids: list[str]) -> None:
         self._col.delete(ids=chunk_ids)

@@ -18,6 +18,9 @@ env/
 # Vector store
 .chroma/
 
+# Incremental index state files (local, not committed)
+*.state.json
+
 # Mentor sessions
 .mentor_sessions/
 

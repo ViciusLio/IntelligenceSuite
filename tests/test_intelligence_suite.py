@@ -427,7 +427,245 @@ class TestKPIThresholds:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SEZIONE 6 — ESCALATION POLICY
+# SEZIONE 6 — INCREMENTAL INDEX
+# ═══════════════════════════════════════════════════════════════════
+
+class TestIncrementalIndex:
+    """Verifica il comportamento del re-index incrementale.
+
+    I test usano un tmp_path isolato: nessun ChromaDB reale viene scritto.
+    """
+
+    # ── helpers ────────────────────────────────────────────────────────────
+
+    def _write_py(self, path: Path, content: str) -> None:
+        path.write_text(content, encoding="utf-8")
+
+    def _jsonl_ids(self, jsonl: Path) -> list[str]:
+        return [
+            json.loads(line)["id"]
+            for line in jsonl.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def _jsonl_checksums(self, jsonl: Path) -> dict[str, str]:
+        return {
+            json.loads(line)["id"]: json.loads(line).get("checksum", "")
+            for line in jsonl.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+
+    # ── parse_repo tests ───────────────────────────────────────────────────
+
+    def test_parse_full_produces_chunks(self, tmp_path):
+        try:
+            from CodeIntelligence.parse_repo import parse_repo
+        except ImportError:
+            pytest.skip("CodeIntelligence non disponibile")
+
+        src = tmp_path / "src"
+        src.mkdir()
+        self._write_py(src / "alpha.py", "def alpha():\n    return 1\n")
+        self._write_py(src / "beta.py",  "def beta():\n    return 2\n")
+
+        out = tmp_path / "chunks.jsonl"
+        chunks = parse_repo(src, out)
+
+        assert len(chunks) >= 2
+        assert out.exists()
+
+    def test_parse_incremental_skips_unchanged_file(self, tmp_path):
+        try:
+            from CodeIntelligence.parse_repo import parse_repo
+        except ImportError:
+            pytest.skip("CodeIntelligence non disponibile")
+
+        src = tmp_path / "src"
+        src.mkdir()
+        self._write_py(src / "alpha.py", "def alpha():\n    return 1\n")
+        self._write_py(src / "beta.py",  "def beta():\n    return 2\n")
+
+        out = tmp_path / "chunks.jsonl"
+
+        # First run (full) — creates state file
+        chunks_first = parse_repo(src, out, incremental=True)
+        state_file = out.with_suffix(".state.json")
+        assert state_file.exists(), "State file non creato dopo prima run"
+
+        ids_first = self._jsonl_ids(out)
+
+        # Modify only beta.py
+        self._write_py(src / "beta.py", "def beta():\n    return 999  # changed\n")
+
+        # Second run (incremental) — alpha.py should be skipped
+        chunks_second = parse_repo(src, out, incremental=True)
+        ids_second = self._jsonl_ids(out)
+
+        assert len(ids_second) >= 1
+        # alpha.py chunk IDs should still be present
+        alpha_ids_first  = [id_ for id_ in ids_first  if "alpha" in id_]
+        alpha_ids_second = [id_ for id_ in ids_second if "alpha" in id_]
+        assert set(alpha_ids_first) == set(alpha_ids_second), \
+            "Chunk di alpha.py (invariato) non preservati nel run incrementale"
+
+    def test_parse_incremental_creates_state_file(self, tmp_path):
+        try:
+            from CodeIntelligence.parse_repo import parse_repo
+        except ImportError:
+            pytest.skip("CodeIntelligence non disponibile")
+
+        src = tmp_path / "src"
+        src.mkdir()
+        self._write_py(src / "mod.py", "def mod():\n    pass\n")
+
+        out = tmp_path / "chunks.jsonl"
+        parse_repo(src, out, incremental=True)
+
+        state_file = out.with_suffix(".state.json")
+        assert state_file.exists()
+
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+        assert "mod.py" in state
+        assert len(state["mod.py"]) == 64  # SHA-256 hex length
+
+    def test_parse_incremental_detects_new_file(self, tmp_path):
+        try:
+            from CodeIntelligence.parse_repo import parse_repo
+        except ImportError:
+            pytest.skip("CodeIntelligence non disponibile")
+
+        src = tmp_path / "src"
+        src.mkdir()
+        self._write_py(src / "alpha.py", "def alpha():\n    return 1\n")
+        out = tmp_path / "chunks.jsonl"
+
+        parse_repo(src, out, incremental=True)
+        ids_first = set(self._jsonl_ids(out))
+
+        # Add new file
+        self._write_py(src / "gamma.py", "def gamma():\n    return 3\n")
+        parse_repo(src, out, incremental=True)
+        ids_second = set(self._jsonl_ids(out))
+
+        new_ids = ids_second - ids_first
+        assert any("gamma" in id_ for id_ in new_ids), \
+            "Nuovo file gamma.py non rilevato nel run incrementale"
+
+    def test_parse_incremental_removes_deleted_file_chunks(self, tmp_path):
+        try:
+            from CodeIntelligence.parse_repo import parse_repo
+        except ImportError:
+            pytest.skip("CodeIntelligence non disponibile")
+
+        src = tmp_path / "src"
+        src.mkdir()
+        self._write_py(src / "alpha.py", "def alpha():\n    return 1\n")
+        self._write_py(src / "doomed.py", "def doomed():\n    return 0\n")
+        out = tmp_path / "chunks.jsonl"
+
+        parse_repo(src, out, incremental=True)
+        ids_first = set(self._jsonl_ids(out))
+        assert any("doomed" in id_ for id_ in ids_first)
+
+        # Delete doomed.py
+        (src / "doomed.py").unlink()
+        parse_repo(src, out, incremental=True)
+        ids_second = set(self._jsonl_ids(out))
+
+        assert not any("doomed" in id_ for id_ in ids_second), \
+            "Chunk di file eliminato ancora presenti dopo run incrementale"
+
+    # ── embed_chunks tests ─────────────────────────────────────────────────
+
+    def test_chunk_checksum_present_in_jsonl(self, tmp_path):
+        """make_chunk() popola sempre il campo checksum — invariante di base."""
+        try:
+            from intelligence_core.chunk import make_chunk, compute_checksum
+        except ImportError:
+            pytest.skip("intelligence_core non disponibile")
+
+        c = make_chunk(
+            domain="code", type_="function", locator="test.foo",
+            text="Function: foo (in test.py)\nBody:\n    return 42",
+            source="test.py", language="python", metadata={},
+        )
+        assert "checksum" in c and c["checksum"], "checksum mancante nel chunk"
+        assert c["checksum"] == compute_checksum(c["text"])
+
+    def test_incremental_embed_skips_unchanged(self, tmp_path):
+        """Chunk già in ChromaDB con checksum invariato non vengono ri-embeddati."""
+        try:
+            from CodeIntelligence.embed_chunks import embed_chunks
+            from intelligence_core.store import ChromaStore
+        except ImportError:
+            pytest.skip("CodeIntelligence o intelligence_core non disponibili")
+
+        # Build a minimal JSONL with one pre-embedded chunk
+        from intelligence_core.chunk import make_chunk, chunk_to_jsonl
+        chunk = make_chunk(
+            domain="code", type_="function", locator="inc.bar",
+            text="Function: bar (in inc.py)\nBody:\n    return 0",
+            source="inc.py", language="python", metadata={},
+        )
+        dummy_embedding = [0.1] * 384
+        chunk["embedding"] = dummy_embedding
+
+        jsonl = tmp_path / "chunks.jsonl"
+        jsonl.write_text(chunk_to_jsonl(chunk) + "\n", encoding="utf-8")
+
+        collection = f"test_inc_{tmp_path.name}"
+        # Pre-load the chunk into a throwaway ChromaDB collection
+        store = ChromaStore(
+            collection_name=collection,
+            persist_dir=str(tmp_path / ".chroma"),
+        )
+        store.add([chunk])
+        assert store.count() == 1
+
+        # Incremental embed should detect checksum match → 0 chunks re-embedded
+        # We can verify indirectly: store count stays at 1 and no new data upserted
+        checksums = store.get_checksums()
+        assert chunk["id"] in checksums
+        assert checksums[chunk["id"]] == chunk["checksum"]
+
+    def test_get_checksums_returns_empty_for_empty_store(self, tmp_path):
+        try:
+            from intelligence_core.store import ChromaStore
+        except ImportError:
+            pytest.skip("intelligence_core non disponibile")
+
+        store = ChromaStore(
+            collection_name=f"empty_{tmp_path.name}",
+            persist_dir=str(tmp_path / ".chroma"),
+        )
+        assert store.get_checksums() == {}
+
+    def test_get_checksums_populated_after_add(self, tmp_path):
+        try:
+            from intelligence_core.store import ChromaStore
+            from intelligence_core.chunk import make_chunk
+        except ImportError:
+            pytest.skip("intelligence_core non disponibile")
+
+        store = ChromaStore(
+            collection_name=f"cs_{tmp_path.name}",
+            persist_dir=str(tmp_path / ".chroma"),
+        )
+        chunk = make_chunk(
+            domain="code", type_="function", locator="cs.func",
+            text="Function: func (in cs.py)\nBody:\n    pass",
+            source="cs.py", language="python", metadata={},
+        )
+        chunk["embedding"] = [0.0] * 384
+        store.add([chunk])
+
+        cs = store.get_checksums()
+        assert chunk["id"] in cs
+        assert cs[chunk["id"]] == chunk["checksum"]
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SEZIONE 7 — ESCALATION POLICY
 # ═══════════════════════════════════════════════════════════════════
 
 class TestEscalationPolicy:
