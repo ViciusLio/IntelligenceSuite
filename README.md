@@ -35,10 +35,17 @@ ollama pull qwen2.5-coder:7b      # generation model (or any other)
 ```bash
 pip install intelligence-suite
 
-ci-parse /path/to/your/repo       # parse → chunks.jsonl
-ci-embed                           # embed → ChromaDB (local, no server needed)
+# Run all commands from the same working directory —
+# ChromaDB persists data to .chroma/ relative to where you run the commands.
+
+ci-parse /path/to/your/repo       # parse → chunks.jsonl        (seconds)
+ci-embed                           # embed → .chroma/            (one-time, ~20-40 min CPU)
 ci-serve                           # REST API + Chat UI → http://localhost:8080
 ```
+
+> **`ci-embed` is slow the first time** (every chunk is sent to the embedding model).
+> ChromaDB persists the result to `.chroma/` — subsequent server restarts are **instant**.
+> Run `ci-embed --incremental` to re-index only new or changed chunks.
 
 ### Chat UI — open your browser
 
@@ -312,18 +319,28 @@ to query your codebase in natural language.
 ### CLI quickstart
 
 ```bash
-# Index a repository
-ci-parse /path/to/repo               # → chunks.jsonl
-ci-embed                              # reads chunks.jsonl → ChromaDB
+# ── Step 1: index (run once from your working directory) ──────────────────
+ci-parse /path/to/repo               # → chunks.jsonl           (seconds)
+ci-embed                              # → .chroma/               (slow, one-time)
 
-# Start the RAG server (default: http://localhost:8080)
-ci-serve
+# Next time the code changes, only re-embed new chunks:
+ci-embed --incremental
 
-# Query
+# ── Step 2: serve (instant — data already in .chroma/) ───────────────────
+ci-serve                              # http://localhost:8080
+
+# ── Step 3: use the chat UI or REST API ──────────────────────────────────
+# Open http://localhost:8080 in your browser  ← streaming chat UI
+
+# Or query via curl:
 curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"question": "Where is authentication handled?"}'
 ```
+
+> **Important:** run `ci-parse`, `ci-embed`, and `ci-serve` from the **same working directory**.
+> ChromaDB stores its data in `.chroma/` relative to where the commands are executed.
+> If the server can't find your chunks (shows 0 chunks), check that you are in the right folder.
 
 ### Python API
 
@@ -363,14 +380,15 @@ Ingests company documents across multiple formats with a 3-level PDF parsing str
 ### CLI quickstart
 
 ```bash
-# Ingest documents (PDF, DOCX, XLSX, TXT, MD)
-di-ingest /path/to/docs              # → doc_chunks.jsonl
-di-embed                              # reads doc_chunks.jsonl → ChromaDB
+# ── Step 1: index (run once from your working directory) ──────────────────
+di-ingest /path/to/docs              # → doc_chunks.jsonl        (seconds)
+di-embed                              # → .chroma/               (slow, one-time)
+di-embed --incremental               # re-index only new files
 
-# Start the doc server (default: http://localhost:8081)
-di-serve
+# ── Step 2: serve (instant) ───────────────────────────────────────────────
+di-serve                              # http://localhost:8081
 
-# Query
+# Open http://localhost:8081 for the chat UI, or query via curl:
 curl -X POST http://localhost:8081/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"question": "What are the production deploy prerequisites?"}'
