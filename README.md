@@ -30,11 +30,30 @@ ollama pull nomic-embed-text      # embedding model
 ollama pull qwen2.5-coder:7b      # generation model (or any other)
 ```
 
-### Index your codebase in 3 commands
+### Option A — Launcher (recommended)
+
+The easiest way: one command starts a dashboard that manages all three modules.
 
 ```bash
 pip install intelligence-suite
 
+is-launch          # opens http://localhost:8079 in your browser
+```
+
+From the launcher page click **Start All** — CodeIntelligence, DocIntelligence and
+MentorIntelligence all start in the background. Click **Open →** on any card to open
+its chat UI. No extra terminals needed.
+
+> **First time?** You still need to index your content before starting the servers:
+> ```bash
+> ci-parse /path/to/repo && ci-embed   # CodeIntelligence (one-time)
+> di-ingest /path/to/docs && di-embed  # DocIntelligence  (one-time)
+> mi-ingest ./practices                # MentorIntelligence (one-time)
+> ```
+
+### Option B — Individual servers
+
+```bash
 ci-parse /path/to/your/repo       # parse → chunks.jsonl        (seconds)
 ci-embed                           # embed → ChromaDB            (one-time, ~20-40 min CPU)
 ci-serve                           # REST API + Chat UI → http://localhost:8080
@@ -43,14 +62,15 @@ ci-serve                           # REST API + Chat UI → http://localhost:808
 > **`ci-embed` is slow the first time** (every chunk is sent to the embedding model).
 > ChromaDB persists the result to **`~/.intelligence_suite/chroma`** (absolute path — safe
 > to run from any working directory). Subsequent server restarts are **instant**.
-> Run `ci-embed --incremental` to re-index only new or changed chunks.
 
 ### Chat UI — open your browser
 
-Once the server is running, open **http://localhost:8080** — the chat interface loads instantly, no extra commands needed.
+Once any server is running, open its URL — the chat interface loads instantly.
 
 - Responses **stream word by word** in real-time (SSE)
-- Left sidebar with **numbered, clickable conversation history**
+- **Multi-conversation sidebar** — New Chat button, full history per module
+- Conversations **persist across page refreshes** (localStorage per module)
+- Date-grouped list: Today / Yesterday / This week / Older
 - **Source citations** as chips below each answer (file · type · score)
 - Server status, chunk count, LLM backend displayed live
 - Zero extra dependencies — served directly from the RAG server
@@ -762,6 +782,7 @@ All variables are accepted as plain environment variables too — no `.env` file
 | `di-serve` | DocIntelligence | Start the doc RAG server on `DI_PORT` (default 8081) |
 | `mi-ingest <dir>` | MentorIntelligence | Ingest best practice documents |
 | `mi-serve` | MentorIntelligence | Start the mentor server on `MI_PORT` (default 8082) |
+| `is-launch` | Launcher | Dashboard to start/stop/monitor all modules — port 8079 |
 
 ---
 
@@ -911,7 +932,7 @@ IntelligenceSuite/
 
 | Version | Milestone | Enterprise target |
 |---|---|---|
-| `0.2.x` | Streaming chat UI · CORS · absolute ChromaDB path · zero-vector protection · dynamic suggestions | **Current — POC ready** |
+| `0.2.x` | Launcher dashboard · multi-conversation sidebar · per-module LLM routing · multilingual embeddings · streaming chat UI · absolute ChromaDB path | **Current — POC ready** |
 | `0.3.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
 | `0.4.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
 | `0.5.0` | vLLM GPU serving · OpenTelemetry tracing · Prometheus metrics | Teams 50+, GPU cluster |
