@@ -69,6 +69,10 @@ def build_app() -> FastAPI:
     # ── Health ─────────────────────────────────────────────────────────────────
     @app.get("/health")
     def health():
+        # NOTE: do NOT call llm.is_available() here — it makes a synchronous
+        # HTTP request to the LLM server which can exceed the browser's 2s
+        # fetch timeout, making the launcher card show "offline" even when
+        # ai-serve is up and responding.
         llm = get_llm_provider()
         supports_tools = hasattr(llm, "generate_with_tools")
         return {
@@ -76,7 +80,6 @@ def build_app() -> FastAPI:
             "module":         "agent",
             "version":        "0.5.0",
             "llm_backend":    llm.backend_name,
-            "llm_available":  llm.is_available(),
             "thinking_mode":  _thinking_enabled,
             "supports_tools": supports_tools,
             "max_iterations": settings.agent_max_iterations,

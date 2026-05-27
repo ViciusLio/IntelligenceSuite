@@ -134,7 +134,7 @@ _HTML = """\
       <div class="text-xs text-gray-600 font-mono">localhost:8084</div>
       <div class="text-xs text-gray-500" id="info-agent">—</div>
 
-      <!-- Thinking mode toggle -->
+      <!-- Thinking mode toggle — visibile solo quando online -->
       <div class="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2" id="thinking-row" style="display:none!important">
         <span class="text-xs text-gray-400">🧠 Thinking mode</span>
         <button id="thinking-btn" onclick="toggleThinking()"
@@ -142,11 +142,11 @@ _HTML = """\
                 style="background:#374151;color:#9ca3af">OFF</button>
       </div>
 
-      <a id="btn-agent" href="http://localhost:8084/docs" target="_blank"
-         class="mt-auto block text-center bg-gray-700 hover:bg-orange-700
-                text-sm py-2.5 rounded-xl font-semibold transition">
-        API Docs →
-      </a>
+      <!-- Motore backend: si usa dalle chat CI · DI · MI -->
+      <div class="mt-auto text-center text-xs text-gray-600 bg-gray-800 rounded-xl py-2.5 leading-relaxed">
+        Interroga dalle chat<br>
+        <span class="text-gray-500 font-semibold">CI · DI · MI</span>
+      </div>
     </div>
 
   </div>
@@ -168,7 +168,7 @@ let _thinkingEnabled = false;
 
 async function pollAgent() {
   try {
-    const r = await fetch('http://localhost:8084/health', { signal: AbortSignal.timeout(2000) });
+    const r = await fetch('http://localhost:8084/health', { signal: AbortSignal.timeout(4000) });
     if (!r.ok) { setAgentOffline(); return; }
     const d = await r.json();
     if (d.status === 'ok') {
@@ -177,8 +177,6 @@ async function pollAgent() {
       document.getElementById('label-agent').className   = 'text-xs text-orange-400';
       document.getElementById('info-agent').textContent  =
         (d.supports_tools ? 'tools ✓' : 'no tools') + ' · ' + (d.llm_backend || '—');
-      document.getElementById('btn-agent').className =
-        document.getElementById('btn-agent').className.replace('bg-gray-700','bg-orange-700');
       // show thinking toggle
       document.getElementById('thinking-row').style.removeProperty('display');
       _thinkingEnabled = d.thinking_mode || false;
@@ -192,8 +190,6 @@ function setAgentOffline() {
   document.getElementById('label-agent').textContent = '○ offline';
   document.getElementById('label-agent').className   = 'text-xs text-gray-500';
   document.getElementById('info-agent').textContent  = 'ai-serve';
-  document.getElementById('btn-agent').className =
-    document.getElementById('btn-agent').className.replace('bg-orange-700','bg-gray-700');
   document.getElementById('thinking-row').style.display = 'none';
 }
 
