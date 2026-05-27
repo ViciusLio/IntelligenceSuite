@@ -87,6 +87,13 @@ class OpenAICompatProvider:
 
         system = system_prompt or SYSTEM_PROMPT_DEFAULT
         user_msg = f"Context:\n{context}\n\nQuestion: {question}"
+        extra: dict = {}
+        try:
+            from intelligence_core.config import settings
+            if settings.thinking_mode and self.backend_name == "vllm":
+                extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}}
+        except Exception:
+            pass
         try:
             client = OpenAI(base_url=self.base_url, api_key=self.api_key)
             resp = client.chat.completions.create(
@@ -97,6 +104,7 @@ class OpenAICompatProvider:
                 ],
                 max_tokens=max_tokens,
                 temperature=temperature,
+                **extra,
             )
             return resp.choices[0].message.content.strip()
         except Exception as exc:
@@ -105,6 +113,62 @@ class OpenAICompatProvider:
                 f"[LLM error ({self.backend_name}): {exc}]\n\n"
                 f"Most relevant context:\n{context[:600]}"
             )
+
+    def generate_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        *,
+        thinking: bool = False,
+        max_tokens: int = 4096,
+        temperature: float = 0.1,
+    ):
+        """Call the model with tool definitions (function calling).
+
+        Returns the raw ``ChatCompletionMessage`` — callers inspect
+        ``.tool_calls`` and ``.content`` directly.
+
+        Args:
+            messages:    Full conversation history in OpenAI format.
+            tools:       List of tool definitions (OpenAI tool schema).
+            thinking:    If True and backend is vLLM, enable Qwen3 thinking mode
+                         via ``extra_body``.
+            max_tokens:  Max tokens for the response (default higher than generate()
+                         to leave room for chain-of-thought).
+            temperature: Sampling temperature.
+        """
+        try:
+            from openai import OpenAI
+        except ImportError as exc:
+            raise ImportError(
+                "openai package not installed. "
+                "Run: pip install 'intelligence-suite[openai]'"
+            ) from exc
+
+        extra: dict = {}
+        if thinking and self.backend_name == "vllm":
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}}
+
+        try:
+            client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+            resp = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **extra,
+            )
+            return resp.choices[0].message
+        except Exception as exc:
+            logger.error("OpenAICompatProvider.generate_with_tools failed: %s", exc)
+            # Return a minimal object that looks like a no-tool-call message
+            class _FallbackMsg:
+                content = f"[LLM error: {exc}]"
+                tool_calls = None
+                reasoning_content = None
+            return _FallbackMsg()
 
     def stream(
         self,

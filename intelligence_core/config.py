@@ -83,15 +83,21 @@ class Settings(BaseSettings):
     # Set INTENT_ROUTING=false to disable routing and keep current RAG behavior
     intent_routing:              bool  = True
     intent_confidence_threshold: float = 0.85
-    # AgentIntelligence is stub in v0.4 — if AGENT detected, falls back to RAG
+    # Set INTENT_AGENT_ENABLED=true to activate real AgentIntelligence (v0.5+)
     intent_agent_enabled:        bool  = False
+
+    # ── Agent / Thinking mode (v0.5) ──────────────────────────────────────────
+    # THINKING_MODE=true  — enable Qwen3 chain-of-thought (extra_body, vLLM only)
+    # AGENT_MAX_ITERATIONS — max ReAct iterations before forcing a final answer
+    thinking_mode:        bool = False
+    agent_max_iterations: int  = 5
 
     # ── Server ports (one per module, avoids conflicts when running together) ──
     ci_port:       int = 8080   # CodeIntelligence
     di_port:       int = 8081   # DocIntelligence
     mi_port:       int = 8082   # MentorIntelligence
     si_port:       int = 8083   # SkillIntelligence
-    agent_port:    int = 8084   # AgentIntelligence (reserved — stub in v0.4)
+    agent_port:    int = 8084   # AgentIntelligence
     launcher_port: int = 8079   # Launcher dashboard
 
     # ── Shared server settings ─────────────────────────────────────────────────

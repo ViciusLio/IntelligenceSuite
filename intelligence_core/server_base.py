@@ -9,7 +9,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
 from intelligence_core.retriever import Retriever
@@ -244,6 +244,29 @@ def create_app(
                 logger.warning("Intent classify error, fallback RAG: %s", exc)
                 intent = None
 
+            if intent is not None and intent.level == IntentLevel.AGENT and settings.intent_agent_enabled:
+                # ── Agent path ─────────────────────────────────────────────────
+                try:
+                    from AgentIntelligence.agent import run_agent as _run_agent
+                    result = await asyncio.to_thread(
+                        _run_agent,
+                        req.question,
+                        _llm,
+                        settings.agent_max_iterations,
+                        settings.thinking_mode,
+                    )
+                    return QueryResponse(
+                        answer=result["answer"],
+                        sources=[],
+                        confidence=round(intent.confidence, 4),
+                        escalated=False,
+                        backend=_llm.backend_name,
+                        latency_ms=round((time.perf_counter() - t0) * 1000, 1),
+                        intent="agent",
+                    )
+                except Exception as exc:
+                    logger.warning("Agent run fallita, fallback RAG: %s", exc)
+
             if intent is not None and intent.level == IntentLevel.SKILL:
                 if not intent.parameters_complete:
                     # Ask for missing parameters — natural language, not an error
@@ -387,6 +410,109 @@ def create_app(
     # ── Streaming query (SSE) ─────────────────────────────────────────────────
     @app.post("/api/v1/stream")
     async def stream_query(req: QueryRequest):
+        from intelligence_core.config import settings
+
+        # ── Intent routing ────────────────────────────────────────────────────
+        if settings.intent_routing:
+            from intelligence_core.intent import classify_intent, IntentLevel
+            try:
+                intent = classify_intent(req.question, registry=_get_skill_registry())
+            except Exception as exc:
+                logger.warning("stream_query: intent classify error, fallback RAG: %s", exc)
+                intent = None
+
+            if intent is not None and intent.level == IntentLevel.AGENT and settings.intent_agent_enabled:
+                # ── Agent path (SSE — stream word by word) ─────────────────────
+                try:
+                    from AgentIntelligence.agent import run_agent as _run_agent
+                    result = await asyncio.to_thread(
+                        _run_agent,
+                        req.question,
+                        _llm,
+                        settings.agent_max_iterations,
+                        settings.thinking_mode,
+                    )
+                    agent_text = result["answer"]
+                    agent_tools = result.get("tools_used", [])
+
+                    async def agent_stream():
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': []})}\n\n"
+                        for word in agent_text.split(" "):
+                            yield f"data: {json.dumps({'type': 'token', 'token': word + ' '})}\n\n"
+                        yield f"data: {json.dumps({'type': 'meta', 'confidence': round(intent.confidence, 4), 'backend': _llm.backend_name, 'escalated': False, 'intent': 'agent', 'tools_used': agent_tools})}\n\n"
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+                    return StreamingResponse(
+                        agent_stream(),
+                        media_type="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                    )
+                except Exception as exc:
+                    logger.warning("stream_query: agent run fallita, fallback RAG: %s", exc)
+
+            if intent is not None and intent.level == IntentLevel.SKILL:
+                answer_text: str | None = None
+                skill_sources: list[dict] = []
+                session_id: str | None = None
+
+                if not intent.parameters_complete:
+                    registry_obj = _get_skill_registry()
+                    skill_obj = registry_obj.get_skill(intent.skill_name) if registry_obj else None
+                    if skill_obj is not None:
+                        missing = [
+                            p for p, spec in skill_obj.parameters.items()
+                            if spec.get("required") and p not in intent.skill_parameters
+                        ]
+                        answer_text = (
+                            f"Per guidarti nel processo '{intent.skill_name}' "
+                            "ho bisogno di sapere: "
+                            + ", ".join(f"**{p}**" for p in missing) + "."
+                        )
+                        if "environment" in missing:
+                            answer_text += " (es: staging o production)"
+                else:
+                    executor_obj = _get_skill_executor()
+                    registry_obj = _get_skill_registry()
+                    if executor_obj is not None and registry_obj is not None:
+                        skill_obj = registry_obj.get_skill(intent.skill_name)
+                        if skill_obj is not None:
+                            try:
+                                session_id, first_step = await asyncio.to_thread(
+                                    executor_obj.start_session,
+                                    skill_obj,
+                                    intent.skill_parameters,
+                                )
+                                answer_text = f"**{first_step.title}**\n\n{first_step.guidance}"
+                                skill_sources = first_step.sources
+                            except Exception as exc:
+                                logger.warning(
+                                    "stream_query: skill session start fallita, fallback RAG: %s", exc
+                                )
+
+                if answer_text is not None:
+                    async def skill_stream():
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': skill_sources})}\n\n"
+                        for word in answer_text.split(" "):
+                            yield f"data: {json.dumps({'type': 'token', 'token': word + ' '})}\n\n"
+                        meta: dict = {
+                            "type": "meta",
+                            "confidence": round(intent.confidence, 4),
+                            "backend": _llm.backend_name,
+                            "escalated": False,
+                            "intent": "skill",
+                        }
+                        if session_id:
+                            meta["session_id"] = session_id
+                        yield f"data: {json.dumps(meta)}\n\n"
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+                    return StreamingResponse(
+                        skill_stream(),
+                        media_type="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                    )
+
+        # ── Standard RAG streaming ────────────────────────────────────────────
         # Rewrite follow-up questions using conversation history
         effective_q = await _rewrite_query(req.question, req.history, _llm)
 

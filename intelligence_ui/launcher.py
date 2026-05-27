@@ -42,7 +42,7 @@ _HTML = """\
 </header>
 
 <main class="flex-1 flex items-center justify-center px-8 py-14">
-  <div class="grid grid-cols-1 md:grid-cols-5 gap-6 w-full max-w-7xl">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-7xl">
 
     <!-- Code Intelligence -->
     <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4">
@@ -116,51 +116,36 @@ _HTML = """\
       </a>
     </div>
 
-    <!-- Skill Intelligence -->
+    <!-- Agent Intelligence -->
     <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4">
-      <div class="flex items-start justify-between">
-        <span class="text-4xl">🧩</span>
-        <div class="flex items-center gap-2">
-          <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-skill"></div>
-          <span class="text-xs text-gray-500" id="label-skill">checking…</span>
-        </div>
-      </div>
-      <div>
-        <h2 class="font-bold text-base mb-1" style="color:#a3e635">Skill Intelligence</h2>
-        <p class="text-xs text-gray-400 leading-relaxed">
-          Step-by-step procedural guidance with cross-domain knowledge retrieval.
-        </p>
-      </div>
-      <div class="text-xs text-gray-600 font-mono">localhost:8083</div>
-      <div class="text-xs text-gray-500" id="info-skill">—</div>
-      <a id="btn-skill" href="http://localhost:8083" target="_blank"
-         class="mt-auto block text-center bg-gray-700 hover:bg-lime-700
-                text-sm py-2.5 rounded-xl font-semibold transition">
-        Apri →
-      </a>
-    </div>
-
-    <!-- Agent Intelligence (coming soon) -->
-    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4 opacity-70">
       <div class="flex items-start justify-between">
         <span class="text-4xl">🤖</span>
         <div class="flex items-center gap-2">
-          <div class="w-2 h-2 rounded-full bg-gray-600" id="dot-agent"></div>
-          <span class="text-xs text-gray-500" id="label-agent">coming soon</span>
+          <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-agent"></div>
+          <span class="text-xs text-gray-500" id="label-agent">checking…</span>
         </div>
       </div>
       <div>
         <h2 class="font-bold text-base mb-1" style="color:#fb923c">Agent Intelligence</h2>
         <p class="text-xs text-gray-400 leading-relaxed">
-          Multi-domain autonomous analysis — complex queries across all knowledge bases.
+          Multi-hop ReAct agent — ricerca autonoma su code, docs e practices.
         </p>
       </div>
       <div class="text-xs text-gray-600 font-mono">localhost:8084</div>
-      <div class="text-xs text-gray-500" id="info-agent">v0.5.0</div>
-      <a id="btn-agent" href="http://localhost:8084" target="_blank"
-         class="mt-auto block text-center bg-gray-800 text-gray-600
-                text-sm py-2.5 rounded-xl font-semibold cursor-not-allowed">
-        In arrivo…
+      <div class="text-xs text-gray-500" id="info-agent">—</div>
+
+      <!-- Thinking mode toggle -->
+      <div class="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2" id="thinking-row" style="display:none!important">
+        <span class="text-xs text-gray-400">🧠 Thinking mode</span>
+        <button id="thinking-btn" onclick="toggleThinking()"
+                class="text-xs px-2 py-0.5 rounded-full font-semibold transition"
+                style="background:#374151;color:#9ca3af">OFF</button>
+      </div>
+
+      <a id="btn-agent" href="http://localhost:8084/docs" target="_blank"
+         class="mt-auto block text-center bg-gray-700 hover:bg-orange-700
+                text-sm py-2.5 rounded-xl font-semibold transition">
+        API Docs →
       </a>
     </div>
 
@@ -176,21 +161,65 @@ const MODULES = [
   { key:'code',   port:8080, hover:'hover:bg-indigo-700' },
   { key:'doc',    port:8081, hover:'hover:bg-cyan-700'   },
   { key:'mentor', port:8082, hover:'hover:bg-pink-700'   },
-  { key:'skill',  port:8083, hover:'hover:bg-lime-700'   },
 ];
-const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve', skill:'si-serve' };
+const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve' };
+
+let _thinkingEnabled = false;
 
 async function pollAgent() {
   try {
     const r = await fetch('http://localhost:8084/health', { signal: AbortSignal.timeout(2000) });
-    const d = r.ok ? await r.json() : null;
-    if (d && d.status === 'stub') {
-      document.getElementById('dot-agent').className   = 'w-2 h-2 rounded-full bg-gray-400';
-      document.getElementById('label-agent').textContent = '● stub';
-      document.getElementById('label-agent').className   = 'text-xs text-gray-400';
-      document.getElementById('info-agent').textContent  = 'stub · v' + (d.version || '0.4.0');
-    }
-  } catch { /* agent not running — keep "coming soon" state */ }
+    if (!r.ok) { setAgentOffline(); return; }
+    const d = await r.json();
+    if (d.status === 'ok') {
+      document.getElementById('dot-agent').className   = 'w-2 h-2 rounded-full bg-orange-400';
+      document.getElementById('label-agent').textContent = '● online';
+      document.getElementById('label-agent').className   = 'text-xs text-orange-400';
+      document.getElementById('info-agent').textContent  =
+        (d.supports_tools ? 'tools ✓' : 'no tools') + ' · ' + (d.llm_backend || '—');
+      document.getElementById('btn-agent').className =
+        document.getElementById('btn-agent').className.replace('bg-gray-700','bg-orange-700');
+      // show thinking toggle
+      document.getElementById('thinking-row').style.removeProperty('display');
+      _thinkingEnabled = d.thinking_mode || false;
+      _updateThinkingBtn();
+    } else { setAgentOffline(); }
+  } catch { setAgentOffline(); }
+}
+
+function setAgentOffline() {
+  document.getElementById('dot-agent').className   = 'w-2 h-2 rounded-full bg-gray-600 dot-pulse';
+  document.getElementById('label-agent').textContent = '○ offline';
+  document.getElementById('label-agent').className   = 'text-xs text-gray-500';
+  document.getElementById('info-agent').textContent  = 'ai-serve';
+  document.getElementById('btn-agent').className =
+    document.getElementById('btn-agent').className.replace('bg-orange-700','bg-gray-700');
+  document.getElementById('thinking-row').style.display = 'none';
+}
+
+function _updateThinkingBtn() {
+  const btn = document.getElementById('thinking-btn');
+  if (_thinkingEnabled) {
+    btn.textContent = 'ON';
+    btn.style.background = '#f97316';
+    btn.style.color = '#fff';
+  } else {
+    btn.textContent = 'OFF';
+    btn.style.background = '#374151';
+    btn.style.color = '#9ca3af';
+  }
+}
+
+async function toggleThinking() {
+  const newVal = !_thinkingEnabled;
+  try {
+    const r = await fetch('http://localhost:8084/api/v1/thinking', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({enabled: newVal}),
+    });
+    if (r.ok) { _thinkingEnabled = newVal; _updateThinkingBtn(); }
+  } catch(e) { console.warn('thinking toggle failed', e); }
 }
 
 async function poll() {

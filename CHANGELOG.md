@@ -10,6 +10,46 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.5.0] — 2026-05-27
+
+### Added
+- **Real AgentIntelligence** — replaces the v0.4.0 stub with a full multi-hop ReAct agent
+  - `AgentIntelligence/agent.py` — ReAct loop: Reason → Act (tool call) → Observe → repeat
+    - Up to `AGENT_MAX_ITERATIONS` iterations (default 5, configurable via `.env`)
+    - Final answer forced via `llm.generate()` if max iterations reached
+    - Graceful fallback to plain `generate()` if backend has no tool-calling support (e.g. Ollama)
+  - `AgentIntelligence/tools.py` — three retrieval tools in OpenAI function-calling schema:
+    - `search_code` → CodeIntelligence collection (`code_intelligence`)
+    - `search_docs` → DocIntelligence collection (`doc_intelligence`)
+    - `search_practices` → MentorIntelligence collection (`mentor_intelligence`)
+    - Lazy retriever cache per collection; graceful fallback if collection unavailable
+  - `AgentIntelligence/agent_server.py` — real FastAPI server on port 8084
+    - `GET /health` — `{status: ok, module: agent, version: 0.5.0, thinking_mode, supports_tools, max_iterations}`
+    - `POST /api/v1/query` — runs the ReAct agent, returns `AgentQueryResponse` with `answer`, `intent`, `iterations`, `reasoning`, `tools_used`, `latency_ms`
+    - `GET /api/v1/thinking` — returns current thinking mode state
+    - `POST /api/v1/thinking` — runtime toggle (persists in-memory while server is up)
+- **Qwen3 Thinking Mode** — `THINKING_MODE=true` in `.env` enables chain-of-thought reasoning
+  - `intelligence_core/llm/openai_compat.py` — `generate_with_tools()` method added to `OpenAICompatProvider`
+    - Passes `extra_body={"chat_template_kwargs": {"enable_thinking": True}}` to vLLM when `thinking=True`
+    - Returns raw `ChatCompletionMessage` with `.tool_calls` and `.content`
+  - `generate()` also supports thinking mode for RAG answers when `THINKING_MODE=true`
+  - `thinking_mode: bool = False` and `agent_max_iterations: int = 5` added to `intelligence_core/config.py`
+- **Agent routing wired into all modules** — when `INTENT_AGENT_ENABLED=true`, AGENT-classified queries are routed to AgentIntelligence instead of falling back to RAG
+  - Both `/api/v1/query` and `/api/v1/stream` endpoints forward to `run_agent()`
+  - Exception during agent run → falls through to RAG (zero downtime)
+- **Launcher Agent card** — 4-column grid (was 3) with Agent Intelligence card
+  - Live status dot (checks `GET :8084/health`)
+  - "Thinking mode" ON/OFF toggle (calls `POST :8084/api/v1/thinking`)
+  - "API Docs →" button opens `http://localhost:8084/docs`
+- **`/api/v1/stream` intent routing** — chat UI queries now also go through intent classification (SKILL and AGENT paths), previously only `/api/v1/query` was routed
+
+### Changed
+- `AgentIntelligence/agent_stub.py` — now delegates to `agent_server.py` (kept for backward compat)
+- `ai-serve` CLI entry point now starts the real agent server (was stub in v0.4.0)
+- `pyproject.toml` version bumped `0.4.0` → `0.5.0`
+
+---
+
 ## [0.4.0] — 2026-05-27
 
 ### Added

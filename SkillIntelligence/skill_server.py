@@ -7,6 +7,7 @@ import time as _time
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from intelligence_core.config import settings
@@ -71,6 +72,10 @@ def build_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse(url="/docs")
 
     # Load registry once at startup
     registry = get_registry()

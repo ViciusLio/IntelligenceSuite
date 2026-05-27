@@ -277,12 +277,12 @@ def classify_intent(
         reasoning = f"stage1={level.value}({confidence:.2f}) → LLM={llm_level.value}({llm_confidence:.2f})"
         level, confidence = llm_level, llm_confidence
 
-    # Agent disabled → fall back to RAG
+    # Agent disabled → fall back to RAG (when enabled, server_base handles it)
     if level == IntentLevel.AGENT and not settings.intent_agent_enabled:
         return IntentResult(
             level=IntentLevel.RAG,
             confidence=confidence,
-            reasoning=f"AGENT rilevato ma non abilitato ({reasoning}) — fallback RAG",
+            reasoning=f"AGENT rilevato ma INTENT_AGENT_ENABLED=false ({reasoning}) — fallback RAG",
         )
 
     # RAG → return early
