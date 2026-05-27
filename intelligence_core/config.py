@@ -79,11 +79,19 @@ class Settings(BaseSettings):
     mi_llm_base_url: str = ""
     mi_llm_api_key:  str = ""
 
+    # ── Intent Routing ────────────────────────────────────────────────────────
+    # Set INTENT_ROUTING=false to disable routing and keep current RAG behavior
+    intent_routing:              bool  = True
+    intent_confidence_threshold: float = 0.85
+    # AgentIntelligence is stub in v0.4 — if AGENT detected, falls back to RAG
+    intent_agent_enabled:        bool  = False
+
     # ── Server ports (one per module, avoids conflicts when running together) ──
     ci_port:       int = 8080   # CodeIntelligence
     di_port:       int = 8081   # DocIntelligence
     mi_port:       int = 8082   # MentorIntelligence
     si_port:       int = 8083   # SkillIntelligence
+    agent_port:    int = 8084   # AgentIntelligence (reserved — stub in v0.4)
     launcher_port: int = 8079   # Launcher dashboard
 
     # ── Shared server settings ─────────────────────────────────────────────────

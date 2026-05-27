@@ -10,6 +10,50 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.0] — 2026-05-27
+
+### Added
+- **Intent Routing** — transparent RAG / Skill / Agent classifier on all four modules
+  - `intelligence_core/intent.py` — two-stage classifier:
+    - Stage 1: zero-latency heuristic (keyword triggers, skill-name match, structural rules)
+    - Stage 2: minimal LLM call only for ambiguous cases (confidence < 0.85)
+    - `IntentLevel` (RAG | SKILL | AGENT), `IntentResult` dataclass
+  - `match_skill()` — keyword-based skill matcher (name match → 0.95, description keywords → 0.70–0.85)
+  - `extract_parameters()` — extracts required skill parameters from natural language via LLM
+  - Automatic fallback to RAG on any LLM failure, bad JSON, or timeout — never crashes
+  - `INTENT_ROUTING=false` in `.env` to disable routing; zero overhead when disabled
+  - `INTENT_AGENT_ENABLED=false` (default) — AGENT queries fall back to RAG until v0.5.0
+- **AgentIntelligence stub** — `AgentIntelligence/` package with stub server on port 8084
+  - `GET /health` → `{"status": "stub", "module": "agent"}` — launcher-ready
+  - Planned for full implementation in v0.5.0
+- **`/api/v1/query` on all modules** — now classifies intent before answering:
+  - RAG path: identical behavior to v0.3.x (backward compatible)
+  - SKILL path: starts a SkillSession and returns the first step as a natural-language answer
+  - Missing parameters: asks the user in natural language instead of returning an error
+- **`/api/v1/skill/next`** on all modules (CI, DI, MI) — delegates to `SkillExecutor.next_step()`
+- **`QueryResponse`** extended with optional fields: `intent`, `session_id`, `is_last_step`
+  (all default to safe values — no breaking change for existing clients)
+- Launcher updated with 5th card for AgentIntelligence (coming soon, gray dot, port 8084)
+- `ai-serve` CLI entry point — starts AgentIntelligence stub on port 8084
+- `agent_port: int = 8084`, `intent_routing: bool = True`, `intent_confidence_threshold: float = 0.85`,
+  `intent_agent_enabled: bool = False` added to `intelligence_core/config.py`
+
+### Tests
+- 58 new tests in `tests/test_intent_routing.py`: heuristic classifier, skill matcher, parameter
+  extraction, fallback behaviour, full routing integration, server endpoints (parametrized ×4),
+  `QueryResponse` schema, config fields
+- Coverage on `intelligence_core/intent.py`: **97%**
+- Zero regressions on the 101 tests from v0.3.0
+
+### Changed
+- `/api/v1/query` on all modules now classifies intent before responding
+  (backward compatible — same request/response signature, new fields are optional)
+- `SkillIntelligence` server now exposes `/api/v1/query` and unified `/api/v1/skill/next`
+  alongside the existing `/api/v1/skill/start` and `/api/v1/skill/session/{id}`
+- Launcher grid expanded to 5 columns
+
+---
+
 ## [0.3.0] — 2026-05-27
 
 ### Added

@@ -42,7 +42,7 @@ _HTML = """\
 </header>
 
 <main class="flex-1 flex items-center justify-center px-8 py-14">
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-6xl">
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-6 w-full max-w-7xl">
 
     <!-- Code Intelligence -->
     <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4">
@@ -140,6 +140,30 @@ _HTML = """\
       </a>
     </div>
 
+    <!-- Agent Intelligence (coming soon) -->
+    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4 opacity-70">
+      <div class="flex items-start justify-between">
+        <span class="text-4xl">🤖</span>
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-gray-600" id="dot-agent"></div>
+          <span class="text-xs text-gray-500" id="label-agent">coming soon</span>
+        </div>
+      </div>
+      <div>
+        <h2 class="font-bold text-base mb-1" style="color:#fb923c">Agent Intelligence</h2>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          Multi-domain autonomous analysis — complex queries across all knowledge bases.
+        </p>
+      </div>
+      <div class="text-xs text-gray-600 font-mono">localhost:8084</div>
+      <div class="text-xs text-gray-500" id="info-agent">v0.5.0</div>
+      <a id="btn-agent" href="http://localhost:8084" target="_blank"
+         class="mt-auto block text-center bg-gray-800 text-gray-600
+                text-sm py-2.5 rounded-xl font-semibold cursor-not-allowed">
+        In arrivo…
+      </a>
+    </div>
+
   </div>
 </main>
 
@@ -156,6 +180,19 @@ const MODULES = [
 ];
 const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve', skill:'si-serve' };
 
+async function pollAgent() {
+  try {
+    const r = await fetch('http://localhost:8084/health', { signal: AbortSignal.timeout(2000) });
+    const d = r.ok ? await r.json() : null;
+    if (d && d.status === 'stub') {
+      document.getElementById('dot-agent').className   = 'w-2 h-2 rounded-full bg-gray-400';
+      document.getElementById('label-agent').textContent = '● stub';
+      document.getElementById('label-agent').className   = 'text-xs text-gray-400';
+      document.getElementById('info-agent').textContent  = 'stub · v' + (d.version || '0.4.0');
+    }
+  } catch { /* agent not running — keep "coming soon" state */ }
+}
+
 async function poll() {
   let online = 0;
   for (const m of MODULES) {
@@ -170,6 +207,7 @@ async function poll() {
     online === MODULES.length ? 'Tutti i moduli online ✓'
     : online === 0            ? 'Nessun modulo attivo — avvia i server dalla CLI'
     :                           online + ' / ' + MODULES.length + ' moduli online';
+  pollAgent();
 }
 
 function setOnline(m, d) {

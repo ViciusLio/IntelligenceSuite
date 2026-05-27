@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-101%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-159%20passed-brightgreen.svg)](tests/)
 
 A modular RAG suite for enterprise on-premise environments.  
 Index your codebase and company documents; query them in natural language with precise source citations.
@@ -595,6 +595,47 @@ Place the file in `SkillIntelligence/skills/` — it is imported and registered 
 Sessions are stored as JSON files in `~/.intelligence_suite/skill_sessions/`.
 They survive server restarts — users can resume from where they left off.
 The session file is deleted automatically when all steps are completed.
+
+---
+
+## Intent Routing — come funziona
+
+Starting from v0.4.0, every `/api/v1/query` request is transparently classified before
+being answered. The user writes in the chat as always; the routing is invisible.
+
+### The three levels
+
+| Level | When | Result |
+|---|---|---|
+| **RAG** | Simple factual question | Standard retrieval + LLM answer (unchanged) |
+| **SKILL** | Procedural request ("guidami", "step by step", "how do I…") | SkillSession started, first step returned as text |
+| **AGENT** | Complex multi-domain analysis | Stub in v0.4.x — falls back to RAG with a note |
+
+### Two-stage classification
+
+1. **Heuristic (0 ms, no LLM call)** — keyword triggers and structural rules. If confidence
+   ≥ 0.85 the result is used directly.
+2. **LLM call (~300 ms)** — minimal prompt, called only for ambiguous cases (confidence < 0.85).
+
+Any failure (LLM timeout, bad JSON, network error) silently falls back to RAG — the request
+always gets an answer.
+
+### Disable routing
+
+Set `INTENT_ROUTING=false` in your `.env` file. When disabled, all requests go through the
+standard RAG path with zero overhead — behavior identical to v0.3.x.
+
+```bash
+# .env
+INTENT_ROUTING=false
+```
+
+### Missing Skill parameters
+
+When routing detects a SKILL intent but cannot extract all required parameters from the query,
+instead of starting the session it asks the user in natural language:
+
+> "Per guidarti nel processo 'deploy_api' ho bisogno di sapere: **service**, **environment**."
 
 ---
 

@@ -27,6 +27,11 @@ class QueryRequest(BaseModel):
     history:   list[dict] = []   # [{"role": "user"|"assistant", "content": "..."}]
 
 
+class SkillNextRequest(BaseModel):
+    session_id: str
+    user_input: str | None = None
+
+
 class QueryResponse(BaseModel):
     answer:      str
     sources:     list[dict]
@@ -34,6 +39,10 @@ class QueryResponse(BaseModel):
     escalated:   bool
     backend:     str
     latency_ms:  float
+    # Intent routing fields — optional, backward-compatible
+    intent:      str         = "rag"   # "rag" | "skill" | "agent" | "agent_stub"
+    session_id:  str | None  = None    # present only for Skill responses
+    is_last_step: bool | None = None   # present only for Skill responses
 
 
 def _build_context(results: list) -> str:
@@ -146,25 +155,53 @@ def create_app(
     policy: EscalationPolicy | None = None,
     llm_provider: LLMProvider | None = None,
     module: str = "code",
+    skill_registry=None,
+    skill_executor=None,
 ) -> FastAPI:
     """
     Build a FastAPI app with:
-      GET  /               — chat UI (streaming, browser-ready)
-      GET  /health         — liveness + chunk count + module name
-      POST /api/v1/query   — semantic search + LLM answer (non-streaming)
-      POST /api/v1/stream  — semantic search + LLM answer (SSE streaming)
+      GET  /                    — chat UI (streaming, browser-ready)
+      GET  /health              — liveness + chunk count + module name
+      POST /api/v1/query        — semantic search + LLM answer, with optional intent routing
+      POST /api/v1/stream       — semantic search + LLM answer (SSE streaming)
+      POST /api/v1/skill/next   — advance an active Skill session
 
     Args:
-        title:        OpenAPI title shown in /docs.
-        retriever:    Configured Retriever (embedder + vector store).
-        policy:       Escalation policy; defaults to EscalationPolicy().
-        llm_provider: LLM backend; defaults to get_llm_provider() from settings.
-        module:       Module identifier ("code" | "doc" | "mentor") — used by
-                      the chat UI to show context-aware suggestion pills.
+        title:          OpenAPI title shown in /docs.
+        retriever:      Configured Retriever (embedder + vector store).
+        policy:         Escalation policy; defaults to EscalationPolicy().
+        llm_provider:   LLM backend; defaults to get_llm_provider() from settings.
+        module:         Module identifier ("code" | "doc" | "mentor") — used by
+                        the chat UI to show context-aware suggestion pills.
+        skill_registry: Optional SkillRegistry — loaded lazily from SkillIntelligence
+                        when routing is enabled and not explicitly provided.
+        skill_executor: Optional SkillExecutor — loaded lazily when routing is enabled.
     """
     app     = FastAPI(title=title, version="0.2.0")
     _policy = policy or EscalationPolicy()
     _llm    = llm_provider or get_llm_provider()
+    _skill_registry = skill_registry
+    _skill_executor = skill_executor
+
+    def _get_skill_registry():
+        nonlocal _skill_registry
+        if _skill_registry is None:
+            try:
+                from SkillIntelligence.registry import get_registry
+                _skill_registry = get_registry()
+            except Exception as exc:
+                logger.warning("Intent routing: impossibile caricare SkillRegistry: %s", exc)
+        return _skill_registry
+
+    def _get_skill_executor():
+        nonlocal _skill_executor
+        if _skill_executor is None:
+            try:
+                from SkillIntelligence.executor import SkillExecutor
+                _skill_executor = SkillExecutor(llm=_llm)
+            except Exception as exc:
+                logger.warning("Intent routing: impossibile creare SkillExecutor: %s", exc)
+        return _skill_executor
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     app.add_middleware(
@@ -195,8 +232,75 @@ def create_app(
     # ── Non-streaming query ───────────────────────────────────────────────────
     @app.post("/api/v1/query", response_model=QueryResponse)
     async def query(req: QueryRequest):
+        from intelligence_core.config import settings
         t0 = time.perf_counter()
 
+        # ── Intent routing (transparent to the caller) ────────────────────────
+        if settings.intent_routing:
+            from intelligence_core.intent import classify_intent, IntentLevel
+            try:
+                intent = classify_intent(req.question, registry=_get_skill_registry())
+            except Exception as exc:
+                logger.warning("Intent classify error, fallback RAG: %s", exc)
+                intent = None
+
+            if intent is not None and intent.level == IntentLevel.SKILL:
+                if not intent.parameters_complete:
+                    # Ask for missing parameters — natural language, not an error
+                    executor_obj = _get_skill_executor()
+                    registry_obj = _get_skill_registry()
+                    skill_obj = registry_obj.get_skill(intent.skill_name) if registry_obj else None
+                    if skill_obj is not None:
+                        missing = [
+                            p for p, spec in skill_obj.parameters.items()
+                            if spec.get("required") and p not in intent.skill_parameters
+                        ]
+                        q_text = (
+                            f"Per guidarti nel processo '{intent.skill_name}' ho bisogno di sapere: "
+                            + ", ".join(f"**{p}**" for p in missing) + "."
+                        )
+                        if "environment" in missing:
+                            q_text += " (es: staging o production)"
+                        return QueryResponse(
+                            answer=q_text,
+                            sources=[],
+                            confidence=round(intent.confidence, 4),
+                            escalated=False,
+                            backend=_llm.backend_name,
+                            latency_ms=round((time.perf_counter() - t0) * 1000, 1),
+                            intent="skill",
+                        )
+
+                # Start skill session and return first step
+                executor_obj = _get_skill_executor()
+                registry_obj = _get_skill_registry()
+                if executor_obj is not None and registry_obj is not None:
+                    skill_obj = registry_obj.get_skill(intent.skill_name)
+                    if skill_obj is not None:
+                        try:
+                            session_id, first_step = await asyncio.to_thread(
+                                executor_obj.start_session, skill_obj, intent.skill_parameters
+                            )
+                            answer = f"**{first_step.title}**\n\n{first_step.guidance}"
+                            if first_step.sources:
+                                answer += "\n\n_Fonti: " + ", ".join(
+                                    s["source"] for s in first_step.sources if s.get("source")
+                                ) + "_"
+                            return QueryResponse(
+                                answer=answer,
+                                sources=first_step.sources,
+                                confidence=round(intent.confidence, 4),
+                                escalated=False,
+                                backend=_llm.backend_name,
+                                latency_ms=round((time.perf_counter() - t0) * 1000, 1),
+                                intent="skill",
+                                session_id=session_id,
+                                is_last_step=first_step.is_last_step,
+                            )
+                        except Exception as exc:
+                            logger.warning("Skill session start fallita, fallback RAG: %s", exc)
+
+        # ── Standard RAG path ─────────────────────────────────────────────────
         # Rewrite follow-up questions using conversation history
         effective_q = await _rewrite_query(req.question, req.history, _llm)
 
@@ -213,7 +317,6 @@ def create_app(
             elapsed_ms=elapsed_ms,
         )
 
-        from intelligence_core.config import settings
         escalated = False
         if should_escalate and settings.anthropic_api_key and _llm.backend_name != "claude":
             from intelligence_core.llm.claude import ClaudeProvider
@@ -235,6 +338,50 @@ def create_app(
             escalated=escalated,
             backend=answer_llm.backend_name,
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
+            intent="rag",
+        )
+
+    # ── Skill next-step endpoint (available on all modules) ───────────────────
+    @app.post("/api/v1/skill/next")
+    async def skill_next(req: SkillNextRequest):
+        from fastapi import HTTPException as _HTTPException
+        executor_obj = _get_skill_executor()
+        if executor_obj is None:
+            raise _HTTPException(status_code=503, detail="SkillExecutor non disponibile")
+        try:
+            result = await asyncio.to_thread(executor_obj.next_step, req.session_id, req.user_input)
+        except KeyError as exc:
+            raise _HTTPException(status_code=404, detail=str(exc))
+        except Exception as exc:
+            raise _HTTPException(status_code=500, detail=str(exc))
+
+        if result is None:
+            return QueryResponse(
+                answer="Procedura completata.",
+                sources=[],
+                confidence=1.0,
+                escalated=False,
+                backend=_llm.backend_name,
+                latency_ms=0.0,
+                intent="skill",
+                is_last_step=True,
+            )
+
+        answer = f"**{result.title}**\n\n{result.guidance}"
+        if result.sources:
+            answer += "\n\n_Fonti: " + ", ".join(
+                s["source"] for s in result.sources if s.get("source")
+            ) + "_"
+        return QueryResponse(
+            answer=answer,
+            sources=result.sources,
+            confidence=1.0,
+            escalated=False,
+            backend=_llm.backend_name,
+            latency_ms=0.0,
+            intent="skill",
+            session_id=result.session_id,
+            is_last_step=result.is_last_step,
         )
 
     # ── Streaming query (SSE) ─────────────────────────────────────────────────

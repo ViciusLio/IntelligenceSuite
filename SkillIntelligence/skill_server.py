@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time as _time
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,11 +11,21 @@ from pydantic import BaseModel
 
 from intelligence_core.config import settings
 from intelligence_core.llm import get_llm_provider
+from intelligence_core.server_base import QueryResponse as _QueryResponse
+from SkillIntelligence.registry import get_registry
 
 logger = logging.getLogger(__name__)
 
 
 # ── Pydantic request/response models ─────────────────────────────────────────
+
+class SkillQueryRequest(BaseModel):
+    question:  str
+    top_k:     int        = 5
+    domain:    str | None = None
+    min_score: float      = 0.3
+    history:   list[dict] = []
+
 
 class StartRequest(BaseModel):
     skill_name: str
@@ -49,7 +60,6 @@ class NextResponse(BaseModel):
 # ── App factory ───────────────────────────────────────────────────────────────
 
 def build_app() -> FastAPI:
-    from SkillIntelligence.registry import get_registry
     from SkillIntelligence.executor import SkillExecutor
 
     app = FastAPI(title="SkillIntelligence Server", version="0.3.0")
@@ -122,6 +132,93 @@ def build_app() -> FastAPI:
             return executor.get_session_info(session_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    # ── /api/v1/query — unified entry point with intent routing ───────────────
+    @app.post("/api/v1/query", response_model=_QueryResponse)
+    def skill_query(req: SkillQueryRequest):
+        from intelligence_core.config import settings
+        from intelligence_core.intent import classify_intent, IntentLevel
+        t0 = _time.perf_counter()
+
+        if not settings.intent_routing:
+            return _QueryResponse(
+                answer="Usa /api/v1/skill/start per avviare una skill direttamente.",
+                sources=[], intent="rag",
+                confidence=0.0, escalated=False,
+                backend=llm.backend_name,
+                latency_ms=round((_time.perf_counter() - t0) * 1000, 1),
+            )
+
+        try:
+            intent = classify_intent(req.question, registry=registry)
+        except Exception as exc:
+            logger.warning("SkillServer: classify_intent error: %s", exc)
+            return _QueryResponse(
+                answer="Errore nella classificazione dell'intent.",
+                sources=[], intent="rag",
+                confidence=0.0, escalated=False,
+                backend=llm.backend_name,
+                latency_ms=round((_time.perf_counter() - t0) * 1000, 1),
+            )
+
+        if intent.level != IntentLevel.SKILL or intent.skill_name is None:
+            return _QueryResponse(
+                answer="Nessuna skill corrispondente trovata per questa query.",
+                sources=[], intent="rag",
+                confidence=round(intent.confidence, 4), escalated=False,
+                backend=llm.backend_name,
+                latency_ms=round((_time.perf_counter() - t0) * 1000, 1),
+            )
+
+        skill_obj = registry.get_skill(intent.skill_name)
+        if skill_obj is None:
+            return _QueryResponse(
+                answer=f"Skill '{intent.skill_name}' non trovata.",
+                sources=[], intent="rag",
+                confidence=0.0, escalated=False,
+                backend=llm.backend_name,
+                latency_ms=round((_time.perf_counter() - t0) * 1000, 1),
+            )
+
+        if not intent.parameters_complete:
+            missing = [
+                p for p, spec in skill_obj.parameters.items()
+                if spec.get("required") and p not in intent.skill_parameters
+            ]
+            q_text = (
+                f"Per guidarti nel processo '{intent.skill_name}' ho bisogno di sapere: "
+                + ", ".join(f"**{p}**" for p in missing) + "."
+            )
+            if "environment" in missing:
+                q_text += " (es: staging o production)"
+            return _QueryResponse(
+                answer=q_text, sources=[], intent="skill",
+                confidence=round(intent.confidence, 4), escalated=False,
+                backend=llm.backend_name,
+                latency_ms=round((_time.perf_counter() - t0) * 1000, 1),
+            )
+
+        try:
+            session_id, first_step = executor.start_session(skill_obj, intent.skill_parameters)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        answer = f"**{first_step.title}**\n\n{first_step.guidance}"
+        if first_step.sources:
+            answer += "\n\n_Fonti: " + ", ".join(
+                s["source"] for s in first_step.sources if s.get("source")
+            ) + "_"
+        return _QueryResponse(
+            answer=answer,
+            sources=first_step.sources,
+            confidence=round(intent.confidence, 4),
+            escalated=False,
+            backend=llm.backend_name,
+            latency_ms=round((_time.perf_counter() - t0) * 1000, 1),
+            intent="skill",
+            session_id=session_id,
+            is_last_step=first_step.is_last_step,
+        )
 
     return app
 
