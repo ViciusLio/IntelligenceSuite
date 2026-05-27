@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-54%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-101%20passed-brightgreen.svg)](tests/)
 
 A modular RAG suite for enterprise on-premise environments.  
 Index your codebase and company documents; query them in natural language with precise source citations.
@@ -291,6 +291,7 @@ REST API you can query from any client.
 | `CodeIntelligence` | Source code | ✅ Stable | Python AST + regex parsers for TS, Go, YAML, SQL, MD |
 | `DocIntelligence` | Company docs | ✅ Stable | PDF (3-level), DOCX, XLSX, TXT ingest pipeline |
 | `MentorIntelligence` | Onboarding | ✅ Stable | Adaptive onboarding — profile detection, sessions, cross-domain path |
+| `SkillIntelligence` | Procedures | ✅ Stable | Step-by-step procedural guidance with cross-domain RAG (code + doc + mentor) |
 
 ---
 
@@ -487,6 +488,113 @@ itself — ideal for teams adopting the suite:
 
 Each file is split by `##` headings at ingest time — **one chunk per section** — for
 precise retrieval. Running `mi-ingest ./practices` produces ~30 chunks.
+
+---
+
+## SkillIntelligence — procedural guidance with RAG
+
+Transforms company procedures into interactive step-by-step guidance sessions.
+Each step retrieves context from the code, doc, and mentor knowledge bases before
+generating LLM guidance — grounded in your actual company knowledge.
+
+### How it works
+
+```
+Markdown / Python skill definition
+        ↓
+SkillRegistry  (auto-discovers skills)
+        ↓
+SkillExecutor.start_session(skill, params)
+        ↓  cross-domain retrieval (code + doc + mentor)
+        ↓  LLM guidance generation (RAG-grounded)
+        ↓
+SkillResult  {step_id, title, guidance, sources, is_last_step, session_id}
+        ↓
+... executor.next_step(session_id) ...
+```
+
+### CLI quickstart
+
+```bash
+# Start the skill server (default: http://localhost:8083)
+si-serve
+
+# List available skills (Python + Markdown auto-discovered)
+si-ingest ./skill_docs
+
+# Start a skill session via REST
+curl -X POST http://localhost:8083/api/v1/skill/start \
+  -H "Content-Type: application/json" \
+  -d '{"skill_name": "deploy_checklist",
+       "parameters": {"service_name": "api", "environment": "staging"}}'
+
+# Advance to the next step
+curl -X POST http://localhost:8083/api/v1/skill/next \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "...", "user_input": "done"}'
+```
+
+### Define a skill in Markdown
+
+```markdown
+# Skill: My Deploy Checklist
+> description: Guide the team through a production deploy.
+> parameters: service_name (str, required), environment (str, required, enum: staging|production)
+
+## Step 1: Pre-flight checks
+**Domini:** doc, code
+**Query:** pre-deploy checklist {service_name} {environment}
+Verify all CI checks pass and the changelog is updated.
+
+## Step 2: Deploy
+**Domini:** doc
+**Query:** deploy procedure {service_name}
+Run the deployment script and confirm the health check turns green.
+```
+
+Save the file anywhere (e.g. `skill_docs/my_deploy.md`) — it is picked up automatically at server start.
+
+### Define a skill in Python
+
+```python
+from SkillIntelligence.base import BaseSkill, SkillStep
+
+class DeployChecklist(BaseSkill):
+    name = "deploy_checklist"
+    description = "Step-by-step production deploy guidance"
+    parameters = {
+        "service_name": {"type": "str", "required": True},
+        "environment":  {"type": "str", "required": True, "enum": ["staging", "production"]},
+    }
+    steps = [
+        SkillStep(id="step_1", title="Pre-flight checks",
+                  description="Verify CI, changelog, feature flags",
+                  knowledge_query="pre-deploy checklist {service_name} {environment}",
+                  domains=["code", "doc"]),
+        SkillStep(id="step_2", title="Deploy",
+                  description="Execute the deployment",
+                  knowledge_query="deploy procedure {service_name}",
+                  domains=["doc"]),
+    ]
+```
+
+Place the file in `SkillIntelligence/skills/` — it is imported and registered automatically.
+
+### REST API reference
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Module status + skills count + LLM availability |
+| `/api/v1/skill/list` | GET | List all registered skills with metadata |
+| `/api/v1/skill/start` | POST | Start a new session → first step guidance + sources |
+| `/api/v1/skill/next` | POST | Advance to next step (`completed: true` when done) |
+| `/api/v1/skill/session/{id}` | GET | Current session metadata (step index, total steps) |
+
+### Session persistence
+
+Sessions are stored as JSON files in `~/.intelligence_suite/skill_sessions/`.
+They survive server restarts — users can resume from where they left off.
+The session file is deleted automatically when all steps are completed.
 
 ---
 
@@ -765,10 +873,11 @@ VECTOR_STORE=chromadb
 # Escalation: fallback to Claude when confidence < threshold
 ESCALATION_THRESHOLD=0.70
 
-# Server ports — all three can run simultaneously
+# Server ports — all four can run simultaneously
 CI_PORT=8080   # CodeIntelligence
 DI_PORT=8081   # DocIntelligence
 MI_PORT=8082   # MentorIntelligence
+SI_PORT=8083   # SkillIntelligence
 ```
 
 All variables are accepted as plain environment variables too — no `.env` file required in CI/CD.
@@ -785,6 +894,8 @@ All variables are accepted as plain environment variables too — no `.env` file
 | `di-serve` | DocIntelligence | Start the doc RAG server on `DI_PORT` (default 8081) |
 | `mi-ingest <dir>` | MentorIntelligence | Ingest best practice documents |
 | `mi-serve` | MentorIntelligence | Start the mentor server on `MI_PORT` (default 8082) |
+| `si-ingest <dir>` | SkillIntelligence | Load / list Markdown skills from a directory |
+| `si-serve` | SkillIntelligence | Start the skill guidance server on `SI_PORT` (default 8083) |
 | `is-launch` | Launcher | Dashboard to start/stop/monitor all modules — port 8079 |
 
 ---
@@ -912,7 +1023,7 @@ From version `0.1.2` onwards, `parse_repo` automatically excludes `build/`, `dis
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
-# 54 passed, 5 skipped (KPI — require indexed store), 0 failed
+# 101 passed, 5 skipped (KPI — require indexed store), 0 failed
 ```
 
 ---
@@ -924,7 +1035,11 @@ IntelligenceSuite/
 ├── intelligence_core/       # Shared: chunk schema, embedder, ChromaDB, retriever, escalation
 ├── CodeIntelligence/        # Code RAG: Python AST, TS, Go, YAML, SQL, MD parsers
 ├── DocIntelligence/         # Doc RAG: PDF (3-level), DOCX, XLSX, TXT
-└── MentorIntelligence/      # Adaptive onboarding: profile, session, path, orchestrator
+├── MentorIntelligence/      # Adaptive onboarding: profile, session, path, orchestrator
+├── SkillIntelligence/       # Procedural guidance: skill registry, executor, cross-domain RAG
+│   └── skills/              # Bundled Python skill definitions
+├── skill_docs/              # Bundled Markdown skill templates
+└── intelligence_ui/         # Launcher dashboard (port 8079)
 ```
 
 ---
@@ -935,11 +1050,11 @@ IntelligenceSuite/
 
 | Version | Milestone | Enterprise target |
 |---|---|---|
-| `0.2.x` | Launcher dashboard · multi-conversation sidebar · per-module LLM routing · multilingual embeddings · streaming chat UI · absolute ChromaDB path | **Current — POC ready** |
-| `0.3.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
-| `0.4.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
-| `0.5.0` | vLLM GPU serving · OpenTelemetry tracing · Prometheus metrics | Teams 50+, GPU cluster |
-| `0.6.0` | GitHub/GitLab webhook · incremental re-index · WebSocket push | Real-time knowledge base |
+| `0.2.x` | Launcher dashboard · multi-conversation sidebar · per-module LLM routing · multilingual embeddings · streaming chat UI · absolute ChromaDB path | ✅ Shipped |
+| `0.3.0` | **SkillIntelligence** — step-by-step procedural guidance with cross-domain RAG · `si-serve` / `si-ingest` CLI · Markdown skill authoring | ✅ Shipped |
+| `0.4.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
+| `0.5.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
+| `0.6.0` | vLLM GPU serving · OpenTelemetry tracing · Prometheus metrics · GitHub/GitLab webhook | Teams 50+, GPU cluster |
 | `1.0.0` | Kubernetes · horizontal scaling · SLA-tested · full observability | Production enterprise |
 
 ### Why graph in v0.3?

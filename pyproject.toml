@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligence-suite"
-version = "0.2.23"
+version = "0.3.0"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
 license = "MIT"
@@ -61,6 +61,8 @@ di-embed   = "DocIntelligence.embed_docs:main"
 di-serve   = "DocIntelligence.doc_server:main"
 mi-ingest  = "MentorIntelligence.content.ingest_practices:main"
 mi-serve   = "MentorIntelligence.mentor_server:main"
+si-serve   = "SkillIntelligence.skill_server:main"
+si-ingest  = "SkillIntelligence.registry:ingest_cli"
 is-launch  = "intelligence_ui.launcher:main"
 is-eval    = "intelligence_eval.eval_runner:main"
 
@@ -72,7 +74,7 @@ Author     = "https://www.linkedin.com/in/vincenzo-lio-dataengineer/"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["intelligence_core*", "CodeIntelligence*", "DocIntelligence*", "MentorIntelligence*", "intelligence_ui*", "intelligence_eval*"]
+include = ["intelligence_core*", "CodeIntelligence*", "DocIntelligence*", "MentorIntelligence*", "SkillIntelligence*", "intelligence_ui*", "intelligence_eval*"]
 
 [tool.setuptools.package-data]
 "MentorIntelligence.content" = ["*.json"]

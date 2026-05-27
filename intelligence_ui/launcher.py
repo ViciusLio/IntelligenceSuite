@@ -42,7 +42,7 @@ _HTML = """\
 </header>
 
 <main class="flex-1 flex items-center justify-center px-8 py-14">
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 w-full max-w-6xl">
 
     <!-- Code Intelligence -->
     <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4">
@@ -116,6 +116,30 @@ _HTML = """\
       </a>
     </div>
 
+    <!-- Skill Intelligence -->
+    <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4">
+      <div class="flex items-start justify-between">
+        <span class="text-4xl">🧩</span>
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-skill"></div>
+          <span class="text-xs text-gray-500" id="label-skill">checking…</span>
+        </div>
+      </div>
+      <div>
+        <h2 class="font-bold text-base mb-1" style="color:#a3e635">Skill Intelligence</h2>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          Step-by-step procedural guidance with cross-domain knowledge retrieval.
+        </p>
+      </div>
+      <div class="text-xs text-gray-600 font-mono">localhost:8083</div>
+      <div class="text-xs text-gray-500" id="info-skill">—</div>
+      <a id="btn-skill" href="http://localhost:8083" target="_blank"
+         class="mt-auto block text-center bg-gray-700 hover:bg-lime-700
+                text-sm py-2.5 rounded-xl font-semibold transition">
+        Apri →
+      </a>
+    </div>
+
   </div>
 </main>
 
@@ -128,8 +152,9 @@ const MODULES = [
   { key:'code',   port:8080, hover:'hover:bg-indigo-700' },
   { key:'doc',    port:8081, hover:'hover:bg-cyan-700'   },
   { key:'mentor', port:8082, hover:'hover:bg-pink-700'   },
+  { key:'skill',  port:8083, hover:'hover:bg-lime-700'   },
 ];
-const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve' };
+const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve', skill:'si-serve' };
 
 async function poll() {
   let online = 0;
@@ -151,8 +176,11 @@ function setOnline(m, d) {
   document.getElementById('dot-'   + m.key).className = 'w-2 h-2 rounded-full bg-green-400';
   document.getElementById('label-' + m.key).textContent = '● online';
   document.getElementById('label-' + m.key).className   = 'text-xs text-green-400';
+  const count = d.skills_count != null
+    ? d.skills_count + ' skills'
+    : (d.chunks_indexed || 0) + ' chunks';
   document.getElementById('info-'  + m.key).textContent =
-    (d.chunks_indexed || 0) + ' chunks · ' + (d.llm_backend || '—');
+    count + ' · ' + (d.llm_backend || '—');
   const btn = document.getElementById('btn-' + m.key);
   btn.className = btn.className.replace('bg-gray-700', 'bg-green-700');
 }

@@ -10,6 +10,39 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.0] — 2026-05-27
+
+### Added
+- **SkillIntelligence** — new module providing step-by-step procedural guidance with
+  cross-domain RAG (code + doc + mentor):
+  - `BaseSkill` / `SkillStep` / `SkillContext` / `SkillResult` — Python dataclass interface
+    for skill definitions; skills can be defined in pure Python or Markdown
+  - `SkillRegistry` — auto-discovers Python skills (`SkillIntelligence/skills/`) and
+    Markdown skills (`skill_docs/`); Python definitions win on duplicate name
+  - `SkillParser` — rule-based Markdown → Skill parser (zero LLM dependency); supports
+    `**Domini:**`, `**Query:**` and `{param}` interpolation in knowledge query templates
+  - `SkillExecutor` — session management with JSON persistence
+    (`~/.intelligence_suite/skill_sessions/`), cross-domain retrieval, LLM guidance generation;
+    all dependencies injectable for zero-disk unit testing
+  - `skill_server.py` — FastAPI REST API on port `SI_PORT` (default 8083):
+    `GET /health`, `GET /api/v1/skill/list`, `POST /api/v1/skill/start`,
+    `POST /api/v1/skill/next`, `GET /api/v1/skill/session/{id}`
+  - Two bundled Python skills: `DeployChecklist` (4 steps, code + doc domains) and
+    `OnboardingDeveloper` (3 steps, code + doc + mentor domains)
+  - Two example Markdown skills: `skill_docs/example_deploy.md` and
+    `skill_docs/example_onboarding.md` — ready-to-customise templates
+  - CLI entry points: `si-serve` (start the REST API server) and
+    `si-ingest <dir>` (load / list Markdown skills from a directory)
+  - Launcher dashboard updated with a 4th card for SkillIntelligence (lime colour, port 8083)
+  - `si_port: int = 8083` added to `intelligence_core/config.py`
+
+### Tests
+- 38 new tests in `tests/test_skill_intelligence.py` (BaseSkill, Parser, Registry, Executor,
+  Integration, Server endpoints) — all 38 pass; baseline 63 passed / 5 skipped unchanged;
+  grand total **101 passed, 5 skipped**
+
+---
+
 ## [0.2.19] — 2026-05-26
 
 ### Changed
@@ -463,5 +496,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 | Version | Planned |
 |---|---|
 | `0.2.0` | pgvector support · multi-tenant namespacing · streaming responses |
-| `0.3.0` | GitHub Actions indexing webhook · incremental re-index |
+| `0.3.0` | ✅ **SkillIntelligence** — step-by-step procedural guidance with cross-domain RAG |
+| `0.4.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose |
+| `0.5.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue |
 | `1.0.0` | Production-grade · SLA-tested · full observability |

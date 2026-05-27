@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     ci_port:       int = 8080   # CodeIntelligence
     di_port:       int = 8081   # DocIntelligence
     mi_port:       int = 8082   # MentorIntelligence
+    si_port:       int = 8083   # SkillIntelligence
     launcher_port: int = 8079   # Launcher dashboard
 
     # ── Shared server settings ─────────────────────────────────────────────────
