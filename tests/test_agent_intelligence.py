@@ -157,7 +157,74 @@ class TestTools:
         assert len(result["results"][0]["text"]) <= 600
 
 
-# ── 2. TestThinkingExtraction ─────────────────────────────────────────────────
+# ── 2. TestTextToolCallParser (Qwen3 native format) ──────────────────────────
+
+class TestTextToolCallParser:
+
+    def test_single_tool_call_parsed(self):
+        from AgentIntelligence.agent import _parse_text_tool_calls
+        content = '<tool_call>\n{"name": "search_code", "arguments": {"query": "foo", "top_k": 5}}\n</tool_call>'
+        result = _parse_text_tool_calls(content)
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].function.name == "search_code"
+        args = json.loads(result[0].function.arguments)
+        assert args["query"] == "foo"
+        assert args["top_k"] == 5
+
+    def test_multiple_tool_calls_parsed(self):
+        from AgentIntelligence.agent import _parse_text_tool_calls
+        content = (
+            '<tool_call>{"name": "search_code", "arguments": {"query": "embedding"}}</tool_call>\n'
+            '<tool_call>{"name": "search_docs", "arguments": {"query": "architecture"}}</tool_call>'
+        )
+        result = _parse_text_tool_calls(content)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0].function.name == "search_code"
+        assert result[1].function.name == "search_docs"
+
+    def test_no_tool_calls_returns_none(self):
+        from AgentIntelligence.agent import _parse_text_tool_calls
+        result = _parse_text_tool_calls("Just a plain text answer with no tool calls.")
+        assert result is None
+
+    def test_malformed_json_skipped(self):
+        from AgentIntelligence.agent import _parse_text_tool_calls
+        content = (
+            '<tool_call>{"name": "search_code", "arguments": {"query": "ok"}}</tool_call>\n'
+            '<tool_call>NOT VALID JSON!!!</tool_call>'
+        )
+        result = _parse_text_tool_calls(content)
+        # Only the valid one is returned
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].function.name == "search_code"
+
+    def test_text_tool_call_loop_executes_and_synthesizes(self):
+        """Agent loop handles Qwen3 text-format tool calls end-to-end."""
+        from AgentIntelligence.agent import run_agent
+        # Iteration 1: model outputs text with <tool_call> blocks
+        iter1_content = (
+            '<tool_call>{"name": "search_code", "arguments": {"query": "retriever"}}</tool_call>'
+        )
+        iter1 = _make_msg(content=iter1_content, tool_calls=None)
+        # Iteration 2: model gives final answer (after seeing tool results)
+        iter2 = _make_msg(content="Il Retriever è usato in server_base.py.", tool_calls=None)
+
+        llm = _llm_with_tools(iter1, iter2)
+        mock_result = {"results": [{"text": "class Retriever:", "source": "retriever.py", "score": 0.9}]}
+
+        with patch("AgentIntelligence.agent.execute_tool", return_value=mock_result):
+            result = run_agent("Come funziona il Retriever?", llm, max_iterations=5)
+
+        assert result["intent"] == "agent"
+        assert "Retriever" in result["answer"]
+        assert "search_code" in result["tools_used"]
+        assert result["iterations"] == 2
+
+
+# ── 3. TestThinkingExtraction ─────────────────────────────────────────────────
 
 class TestThinkingExtraction:
 
