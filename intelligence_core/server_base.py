@@ -221,12 +221,14 @@ def create_app(
     # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/health")
     def health():
+        # NOTE: llm.is_available() deliberately excluded — it makes a synchronous
+        # HTTP call to the LLM backend and exceeds the browser AbortSignal timeout,
+        # causing the launcher to show the module as offline even when it is running.
         return {
             "status":         "ok",
             "module":         module,
             "chunks_indexed": retriever.store.count(),
             "llm_backend":    _llm.backend_name,
-            "llm_available":  _llm.is_available(),
         }
 
     # ── Non-streaming query ───────────────────────────────────────────────────
