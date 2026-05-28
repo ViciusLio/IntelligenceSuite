@@ -33,6 +33,14 @@ env/
 .DS_Store
 Thumbs.db
 
+# Demo aziendale — contenuto riservato, MAI nel repo
+demo_spindox/
+chunks.jsonl
+chunks_L*.jsonl
+doc_chunks.jsonl
+mentor_chunks.jsonl
+" - Copia.env"
+
 # Test artifacts
 .pytest_cache/
 .mypy_cache/
