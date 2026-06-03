@@ -751,10 +751,97 @@ pytest tests/ -v
 
 ## Architecture
 
+IntelligenceSuite is built in **two layers**: a shared engine (`intelligence_core`) that
+implements the entire RAG pipeline once, and a set of **domain modules** (Code, Doc, Mentor,
+Skill, Agent) that reuse that engine and only add domain-specific parsing and API surface.
+Everything runs **on-premise by default** — Ollama for inference, ChromaDB embedded for storage.
+
+### The big picture
+
+```
+                 ┌──────────────────────── INGEST (one-time, offline) ─────────────────────────┐
+  source code ──►│ parser (AST / Tree-sitter / regex)                                           │
+  documents   ──►│ parser (PDF 3-level / DOCX / XLSX / MD)   ──►  chunks.jsonl  ──►  embedder    │──► ChromaDB
+  practices   ──►│ ingest (Markdown ## sections)                 (unified schema)  (vectors)    │   (per-domain
+                 └──────────────────────────────────────────────────────────────────────────────┘   collections)
+                                                                                                          │
+                 ┌──────────────────────── QUERY (live, per request) ──────────────────────────┐        │
+   user ───────► │ Intent Routing ──► Retriever / MultiRetriever ──► reranker ──► GraphRAG       │◄───────┘
+   question      │   (RAG/SKILL/      (vector search, top-N        (cross-encoder  (callers +     │
+                 │    AGENT)           candidate pool)              re-order)       callees)      │
+                 │                                                      │                          │
+                 │                                                      ▼                          │
+                 │                              LLM generation (Ollama / OpenAI / vLLM / Claude)   │
+                 │                                                      │                          │
+                 │                          confidence < threshold? ──► escalate to Claude         │
+                 └──────────────────────────────────────────────────────────────────────────────┘
+                                                                       │
+                                                                       ▼
+                                              answer + source citations + confidence (JSON / SSE)
+```
+
+### The engine — `intelligence_core`
+
+Every module delegates to these shared components, so a fix or improvement here benefits all
+five domains at once:
+
+| Component | File | What it does and why it matters |
+|---|---|---|
+| **Chunk schema** | `chunk.py` | The universal unit of knowledge. A self-contained snippet (`id`, `domain`, `type`, `text`, `source`, `metadata`) with a deterministic `domain::type::locator` ID so re-indexing is idempotent. Everything in the suite speaks "chunks". |
+| **Embedder** | `embedder.py` | Turns chunk text into vectors. Pluggable backend (Ollama / SentenceTransformer / Voyage) behind one interface. **Fails loudly** if the model is unreachable — never stores zero-vectors that would silently poison search. |
+| **Vector store** | `store.py` | Thin wrapper over **ChromaDB embedded** (no server, no Docker). One collection per domain (`code_intelligence`, `doc_intelligence`, `mentor_intelligence`) keeps domains from contaminating each other's results. |
+| **Retriever** | `retriever.py` | The query workhorse. Embeds the question, pulls a **candidate pool** from the store (wider than `top_k` when reranking is on), applies the reranker (or the legacy keyword boost), optionally expands via GraphRAG, and returns ranked `SearchResult`s with scores. |
+| **MultiRetriever** | `retriever.py` | Same contract, but pools candidates from **several collections at once** and reranks them on a single global scale — this is what powers cross-domain queries and `ci-eval --domain all`. A broken collection is skipped, never fatal. |
+| **Reranker** | `reranker.py` | A **cross-encoder** that re-scores each (question, chunk) pair jointly — far more precise than the bi-encoder vector search. Lazy-loaded, sigmoid-normalised to `[0,1]`, opt-in via `RERANK_ENABLED`. Biggest single lever for context precision. |
+| **LLM provider** | `llm/` | Provider-agnostic generation behind one protocol. Switch Ollama ↔ OpenAI ↔ vLLM ↔ Claude with one env var; per-module overrides (`CI_LLM_*`, …) let each domain use a different model. |
+| **Escalation** | `escalation.py` | Safety net: when retrieval confidence drops below `ESCALATION_THRESHOLD` and a Claude key is present, the answer is escalated to the cloud — otherwise everything stays local. |
+| **Intent Routing** | `intent.py` | Classifies each query as RAG / SKILL / AGENT (fast heuristic first, LLM only for ambiguous cases). Invisible to the user; always falls back to plain RAG on any failure. |
+| **GraphRAG** | `graph/` | Builds a NetworkX dependency graph from `calls`/`imports` metadata, then expands retrieved context with structurally-related code (callers + callees). Optional — missing graph degrades gracefully. |
+| **Evaluation** | `evaluation/` | The RAGAS pipeline behind `ci-eval`: generates a testset, runs retrieval+generation, and scores faithfulness / relevancy / context precision / recall against KPI targets. |
+
+### The domain modules
+
+Each module is a **thin shell** around the engine: a parser/ingester that produces chunks, plus a
+FastAPI server (and chat UI) on its own port. They share the retriever, embedder, store, and LLM
+layer entirely.
+
+- **CodeIntelligence** — parses a repository (Python AST, Tree-sitter/regex for TS/Go/Java/Rust,
+  plus YAML/SQL/MD) into code chunks; serves the code RAG on `ci-serve`.
+- **DocIntelligence** — ingests company documents (3-level PDF, DOCX, XLSX, TXT/MD) into doc
+  chunks; serves the doc RAG on `di-serve`.
+- **MentorIntelligence** — adaptive onboarding: detects a newcomer's profile, manages sessions,
+  builds a learning path, and answers across `code`+`doc`+`mentor` in one query.
+- **SkillIntelligence** — turns procedures into step-by-step guided sessions; each step retrieves
+  cross-domain context before generating grounded LLM guidance.
+- **AgentIntelligence** — a ReAct loop for questions a single retrieval can't answer; reasons,
+  calls tools (`search_code/docs/practices`, `analyze_impact`), observes, and iterates.
+
+The **launcher** (`intelligence_ui`, `is-launch`) is the operator's cockpit — it starts, stops,
+and monitors every server from one dashboard. The **eval runner** (`intelligence_eval`, `is-eval`)
+drives quality measurement across modules.
+
+### Request lifecycle (a single `/api/v1/query`)
+
+1. **Route** — Intent Routing classifies the question (RAG / SKILL / AGENT). Simple factual
+   questions go straight to RAG.
+2. **Retrieve** — the Retriever embeds the question and pulls a candidate pool from ChromaDB
+   (a single collection, or all of them via MultiRetriever).
+3. **Rerank** — the cross-encoder re-orders the candidates by joint (question, chunk) relevance
+   and cuts to `top_k` (or the legacy keyword boost when reranking is off).
+4. **Expand (optional)** — if a dependency graph exists, GraphRAG adds structurally-related code.
+5. **Generate** — the chosen LLM backend writes an answer grounded in the retrieved chunks.
+6. **Escalate (conditional)** — if confidence is below threshold and a Claude key is set, the
+   answer is regenerated by the cloud model.
+7. **Respond** — the client receives the answer plus **source citations**, a confidence score,
+   and the backend used — streamed word-by-word over SSE in the chat UI.
+
+### Source tree
+
 ```
 IntelligenceSuite/
-├── intelligence_core/       # Shared layer
+├── intelligence_core/       # Shared engine — all of the above lives here
 │   ├── parsers/             #   class-based Tree-sitter parsers (TS, Go, Java, Rust)
+│   ├── llm/                 #   provider-agnostic LLM backends (Ollama/OpenAI/vLLM/Claude)
 │   ├── graph/               #   NetworkX dependency graph + GraphRAG + ci-graph CLI
 │   └── evaluation/          #   RAGAS pipeline (ci-eval)
 ├── CodeIntelligence/        # Code RAG: Python AST + Tree-sitter/regex, YAML, SQL, MD parsers
