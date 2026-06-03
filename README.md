@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-257%20passed-brightgreen.svg)](tests/)
 
-A modular RAG suite for enterprise on-premise environments.  
+A modular RAG suite for enterprise on-premise environments.
 Index your codebase and company documents; query them in natural language with precise source citations.
 
 **Zero mandatory cloud. Zero lock-in. Fully on-premise by default.**
@@ -23,8 +23,8 @@ code + docs  →  parse  →  chunks  →  embed  →  ChromaDB  →  REST API  
 ### Prerequisites
 
 ```bash
-# 1. Ollama (local inference — no GPU required for embedding)
-#    Download from https://ollama.com, then:
+# Ollama (local inference — no GPU required for embedding)
+# Download from https://ollama.com, then:
 ollama serve
 ollama pull nomic-embed-text      # embedding model
 ollama pull qwen2.5-coder:7b      # generation model (or any other)
@@ -32,7 +32,7 @@ ollama pull qwen2.5-coder:7b      # generation model (or any other)
 
 ### Option A — Launcher (recommended)
 
-The easiest way: one command starts a dashboard that manages all three modules.
+One command starts a dashboard that manages every module.
 
 ```bash
 pip install intelligence-suite
@@ -40,14 +40,14 @@ pip install intelligence-suite
 is-launch          # opens http://localhost:8079 in your browser
 ```
 
-From the launcher page each card has two controls:
-- **Offline** → **▶ Start** starts the server in the background + **Apri →** opens the chat UI
-  (use Start first, wait a few seconds for the dot to turn green, then Apri →)
+Each card on the launcher page has two controls:
+- **Offline** → **▶ Start** runs the server in the background, then **Apri →** opens the chat UI
+  (start first, wait a few seconds for the dot to turn green, then open)
 - **Online** → **Apri →** opens the chat UI directly + **■** stops the server
 
-Header **▶ Avvia tutto** starts all three servers at once. No extra terminals needed.
+The header **▶ Avvia tutto** button starts all servers at once — no extra terminals needed.
 
-> **First time?** You still need to index your content before starting the servers:
+> **First time?** Index your content before starting the servers:
 > ```bash
 > ci-parse /path/to/repo && ci-embed   # CodeIntelligence (one-time)
 > di-ingest /path/to/docs && di-embed  # DocIntelligence  (one-time)
@@ -66,14 +66,13 @@ ci-serve                           # REST API + Chat UI → http://localhost:808
 > ChromaDB persists the result to **`~/.intelligence_suite/chroma`** (absolute path — safe
 > to run from any working directory). Subsequent server restarts are **instant**.
 
-### Chat UI — open your browser
+### Chat UI
 
 Once any server is running, open its URL — the chat interface loads instantly.
 
 - Responses **stream word by word** in real-time (SSE)
 - **Multi-conversation sidebar** — New Chat button, full history per module
 - Conversations **persist across page refreshes** (localStorage per module)
-- Date-grouped list: Today / Yesterday / This week / Older
 - **Source citations** as chips below each answer (file · type · score)
 - Server status, chunk count, LLM backend displayed live
 - Zero extra dependencies — served directly from the RAG server
@@ -101,173 +100,6 @@ curl -X POST http://localhost:8080/api/v1/query \
 
 ---
 
-## Jupyter Notebook example
-
-Three cells to go from raw repository to natural-language answers.
-
-**Cell 1 — Parse & embed (run once)**
-
-```python
-from pathlib import Path
-from CodeIntelligence.parse_repo import parse_repo
-from CodeIntelligence.embed_chunks import embed_chunks
-
-REPO = Path("/path/to/your/repo")
-
-chunks = parse_repo(REPO, output=Path("chunks.jsonl"))
-print(f"✅ {len(chunks)} chunks extracted")
-
-embed_chunks(Path("chunks.jsonl"))   # → ChromaDB local, no server needed
-print("✅ Indexed into ChromaDB")
-```
-
-```
-Parsed: 631 chunks, 23 files without parser
-✅ 631 chunks extracted
-Embedding 631/631 chunks...
-  batch 1: 32 chunks embedded
-  ...
-  batch 20: 32 chunks embedded
-JSONL saved: chunks.jsonl
-ChromaDB 'code_intelligence': 631 total chunks indexed
-✅ Indexed into ChromaDB
-```
-
-**Cell 2 — Semantic search**
-
-```python
-from intelligence_core.retriever import Retriever
-
-retriever = Retriever.load_default(collection_name="code_intelligence")
-
-QUESTION = "How does the retriever work?"
-results = retriever.search(QUESTION, domain="code", top_k=5)
-
-for r in results:
-    print(f"[{r.rank}] score={r.score:.3f} | {r.chunk['source']} ({r.chunk['type']})")
-```
-
-```
-[1] score=0.823 | intelligence_core/retriever.py (function)
-[2] score=0.791 | README.md (file)
-[3] score=0.764 | intelligence_core/store.py (function)
-[4] score=0.741 | examples/01_code_intelligence.py (file)
-[5] score=0.718 | intelligence_core/embedder.py (function)
-```
-
-**Cell 3 — LLM answer**
-
-```python
-from intelligence_core.llm import get_llm_provider
-
-llm     = get_llm_provider()   # reads LLM_BACKEND from .env — default: ollama
-context = "\n\n---\n\n".join(r.chunk["text"] for r in results[:3])
-answer  = llm.generate(QUESTION, context)
-
-print(f"💬 Answer ({llm.backend_name}):\n{answer}")
-```
-
-```
-💬 Answer (ollama):
-
-The retriever works by loading a default collection named "code_intelligence"
-and then searching for documents related to the query within the "code" domain.
-It retrieves the top 5 most relevant results using semantic similarity combined
-with a keyword boost (+0.1 per matching term, capped at +0.3), then re-ranks
-by final score. Sources are cited with file path, chunk type, and similarity score.
-```
-
-> Tested on a standard laptop (CPU only, no GPU). Cell 1 is a one-time operation —
-> subsequent queries (Cell 2 + 3) return in **1–5 seconds**.
-
-### DocIntelligence notebook example
-
-**Cell 1 — Ingest & embed documents (run once)**
-
-```python
-from pathlib import Path
-from DocIntelligence.ingest_docs import ingest_docs
-from DocIntelligence.embed_docs import embed_docs
-
-DOCS = Path("/path/to/your/docs")   # PDF, DOCX, XLSX, TXT, MD
-
-chunks = ingest_docs(DOCS, output=Path("doc_chunks.jsonl"))
-print(f"✅ {len(chunks)} chunks ingested")
-
-embed_docs(Path("doc_chunks.jsonl"))   # → ChromaDB "doc_intelligence"
-print("✅ Indexed into ChromaDB")
-```
-
-**Cell 2 — Search & answer**
-
-```python
-from intelligence_core.retriever import Retriever
-from intelligence_core.llm import get_llm_provider
-
-retriever = Retriever.load_default(collection_name="doc_intelligence")
-llm       = get_llm_provider()
-
-QUESTION  = "What are the production deploy prerequisites?"
-results   = retriever.search(QUESTION, domain="doc", top_k=5)
-context   = "\n\n---\n\n".join(r.chunk["text"] for r in results[:3])
-answer    = llm.generate(QUESTION, context)
-
-print(f"💬 Answer ({llm.backend_name}):\n{answer}")
-print("\n📎 Sources:")
-for r in results:
-    print(f"  [{r.rank}] score={r.score:.3f} | {r.chunk['source']} ({r.chunk['type']})")
-```
-
-### MentorIntelligence notebook example
-
-**Cell 1 — Ingest best practices (run once)**
-
-```python
-from pathlib import Path
-from MentorIntelligence.content.ingest_practices import ingest_practices
-
-PRACTICES = Path("./practices")   # folder with .md / .txt team conventions
-PRACTICES.mkdir(exist_ok=True)
-
-# Drop any .md files with team conventions, naming guides, runbooks
-chunks = ingest_practices(PRACTICES)
-print(f"✅ {len(chunks)} practice chunks indexed into ChromaDB 'mentor_intelligence'")
-```
-
-**Cell 2 — Start an onboarding session**
-
-```python
-import httpx, json
-
-# Requires: mi-serve running on http://localhost:8082
-BASE = "http://localhost:8082"
-
-# Create session
-resp = httpx.post(f"{BASE}/api/v1/mentor/onboard", json={
-    "user_name": "Alice",
-    "intro": "I am a senior Python developer, joining the team today."
-}, timeout=30)
-session = resp.json()
-print(f"Session: {session['session_id']}")
-print(f"Profile: {session['profile']}")
-print(f"\nOnboarding path:\n{session['path']}")
-```
-
-**Cell 3 — Ask within the onboarding path**
-
-```python
-resp = httpx.post(f"{BASE}/api/v1/mentor/ask", json={
-    "session_id": session["session_id"],
-    "question":   "How does authentication work in this codebase?"
-}, timeout=60)
-
-answer = resp.json()
-print(f"💬 Answer:\n{answer['answer']}")
-print(f"\n📎 Sources: {[s['source'] for s in answer['sources'][:3]]}")
-```
-
----
-
 ## The problem it solves
 
 How much time does your team lose every week hunting down where a function is implemented,
@@ -285,14 +117,14 @@ REST API you can query from any client.
 
 ## Modules
 
-| Module | Domain | Status | Description |
-|---|---|---|---|
-| `intelligence_core` | Shared layer | ✅ Stable | Chunk schema, embedder, ChromaDB store, retriever, escalation policy, RAGAS evaluation, dependency graph (GraphRAG) |
-| `CodeIntelligence` | Source code | ✅ Stable | Python AST + Tree-sitter parsers for TS, Go, Java, Rust (regex fallback), YAML, SQL, MD |
-| `DocIntelligence` | Company docs | ✅ Stable | PDF (3-level), DOCX, XLSX, TXT ingest pipeline |
-| `MentorIntelligence` | Onboarding | ✅ Stable | Adaptive onboarding — profile detection, sessions, cross-domain path |
-| `SkillIntelligence` | Procedures | ✅ Stable | Step-by-step procedural guidance with cross-domain RAG (code + doc + mentor) |
-| `AgentIntelligence` | Multi-hop agent | ✅ Stable | ReAct agent with tool calling (search_code/docs/practices, analyze_impact) + Qwen3 thinking mode |
+| Module | Domain | Description |
+|---|---|---|
+| `intelligence_core` | Shared layer | Chunk schema, embedder, ChromaDB store, retriever, escalation policy, RAGAS evaluation, dependency graph (GraphRAG) |
+| `CodeIntelligence` | Source code | Python AST + Tree-sitter parsers for TS, Go, Java, Rust (regex fallback), YAML, SQL, MD |
+| `DocIntelligence` | Company docs | PDF (3-level), DOCX, XLSX, TXT ingest pipeline |
+| `MentorIntelligence` | Onboarding | Adaptive onboarding — profile detection, sessions, cross-domain path |
+| `SkillIntelligence` | Procedures | Step-by-step procedural guidance with cross-domain RAG (code + doc + mentor) |
+| `AgentIntelligence` | Multi-hop agent | ReAct agent with tool calling (search_code/docs/practices, analyze_impact) |
 
 ---
 
@@ -350,35 +182,26 @@ to query your codebase in natural language.
 | **YAML** | Heuristic | Docker Compose services, GitHub Actions jobs, K8s manifests |
 | **Markdown** | Heading-based | H1 / H2 / H3 sections |
 
-¹ Requires the `[multilang]` extra (`pip install "intelligence-suite[multilang]"`). When not installed,
-TypeScript/JS and Go fall back to the regex parsers automatically — zero breaking changes. Tree-sitter
-parsers also extract `calls` metadata, which powers the dependency graph (`[graph]`).
+¹ Requires the `[multilang]` extra. When not installed, TypeScript/JS and Go fall back to the
+regex parsers automatically — zero breaking changes. Tree-sitter parsers also extract `calls`
+metadata, which powers the dependency graph (`[graph]`).
 
 ### CLI quickstart
 
 ```bash
-# ── Step 1: index (run once, from any directory) ──────────────────────────
-ci-parse /path/to/repo               # → chunks.jsonl           (seconds)
+ci-parse /path/to/repo               # → chunks.jsonl                  (seconds)
 ci-embed                              # → ~/.intelligence_suite/chroma  (slow, one-time)
-
-# Next time the code changes, only re-embed new chunks:
-ci-embed --incremental
-
-# ── Step 2: serve (instant — data already in ChromaDB) ───────────────────
+ci-embed --incremental                # re-embed only new chunks
 ci-serve                              # http://localhost:8080
 
-# ── Step 3: use the chat UI or REST API ──────────────────────────────────
-# Open http://localhost:8080 in your browser  ← streaming chat UI
-# Suggestion pills adapt to the module (Code / Doc / Mentor) automatically.
-
-# Or query via curl:
+# Query via curl:
 curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"question": "Where is authentication handled?"}'
 ```
 
 > ChromaDB data is stored in **`~/.intelligence_suite/chroma`** (absolute path, resolved at
-> startup). You can run commands from any directory — the data will always be found.
+> startup). Run commands from any directory — the data is always found.
 > Override with `CHROMA_PERSIST_DIR=/custom/path` in `.env` if needed.
 
 ### Python API
@@ -419,15 +242,11 @@ Ingests company documents across multiple formats with a 3-level PDF parsing str
 ### CLI quickstart
 
 ```bash
-# ── Step 1: index (run once, from any directory) ──────────────────────────
-di-ingest /path/to/docs              # → doc_chunks.jsonl        (seconds)
+di-ingest /path/to/docs              # → doc_chunks.jsonl              (seconds)
 di-embed                              # → ~/.intelligence_suite/chroma  (slow, one-time)
-di-embed --incremental               # re-index only new files
-
-# ── Step 2: serve (instant) ───────────────────────────────────────────────
+di-embed --incremental                # re-index only new files
 di-serve                              # http://localhost:8081
 
-# Open http://localhost:8081 for the chat UI, or query via curl:
 curl -X POST http://localhost:8081/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"question": "What are the production deploy prerequisites?"}'
@@ -441,11 +260,9 @@ from DocIntelligence.ingest_docs import ingest_docs
 from DocIntelligence.embed_docs import embed_docs
 from intelligence_core.retriever import Retriever
 
-# 1. Ingest and embed (one-time)
 chunks = ingest_docs(Path("/path/to/docs"), output=Path("doc_chunks.jsonl"))
 embed_docs(Path("doc_chunks.jsonl"))   # → ChromaDB "doc_intelligence"
 
-# 2. Query
 retriever = Retriever.load_default(collection_name="doc_intelligence")
 results = retriever.search("Production deploy prerequisites", domain="doc", top_k=5)
 for hit in results:
@@ -459,8 +276,6 @@ for hit in results:
 Builds a personalised onboarding path for each newcomer, combining knowledge from both the
 codebase and company documents via cross-domain retrieval.
 
-### Capabilities
-
 | Feature | Description |
 |---|---|
 | **Profile detection** | Infers seniority and specialisation from the intro message |
@@ -472,12 +287,8 @@ codebase and company documents via cross-domain retrieval.
 ### CLI quickstart
 
 ```bash
-# Ingest your team's best practices (Markdown / TXT / YAML)
-# The repo ships with a ready-to-use practices/ folder for IntelligenceSuite itself:
-mi-ingest ./practices
-
-# Start the mentor server (default: http://localhost:8082)
-mi-serve
+mi-ingest ./practices                 # ingest best practices (Markdown / TXT / YAML)
+mi-serve                              # http://localhost:8082
 
 # Start an onboarding session
 curl -X POST http://localhost:8082/api/v1/mentor/onboard \
@@ -490,20 +301,8 @@ curl -X POST http://localhost:8082/api/v1/mentor/ask \
   -d '{"session_id": "...", "question": "How does authentication work in this codebase?"}'
 ```
 
-### Bundled `practices/` folder
-
-The repository ships with four ready-to-use Markdown guides covering IntelligenceSuite
-itself — ideal for teams adopting the suite:
-
-| File | Content |
-|---|---|
-| `01_onboarding_nuovo_developer.md` | Day-by-day setup, first indexing, team conventions |
-| `02_come_usare_code_intelligence.md` | CI pipeline, CLI commands, API, troubleshooting |
-| `03_come_usare_doc_intelligence.md` | DI supported formats, pipeline, confidence notes |
-| `04_come_usare_mentor_intelligence.md` | MI onboarding flow, profile detection, REST API |
-
-Each file is split by `##` headings at ingest time — **one chunk per section** — for
-precise retrieval. Running `mi-ingest ./practices` produces ~30 chunks.
+The repository ships a ready-to-use `practices/` folder documenting IntelligenceSuite itself —
+each file is split by `##` headings at ingest time (one chunk per section) for precise retrieval.
 
 ---
 
@@ -512,8 +311,6 @@ precise retrieval. Running `mi-ingest ./practices` produces ~30 chunks.
 Transforms company procedures into interactive step-by-step guidance sessions.
 Each step retrieves context from the code, doc, and mentor knowledge bases before
 generating LLM guidance — grounded in your actual company knowledge.
-
-### How it works
 
 ```
 Markdown / Python skill definition
@@ -532,19 +329,14 @@ SkillResult  {step_id, title, guidance, sources, is_last_step, session_id}
 ### CLI quickstart
 
 ```bash
-# Start the skill server (default: http://localhost:8083)
-si-serve
+si-serve                              # http://localhost:8083
+si-ingest ./skill_docs                # load / list Markdown skills
 
-# List available skills (Python + Markdown auto-discovered)
-si-ingest ./skill_docs
-
-# Start a skill session via REST
 curl -X POST http://localhost:8083/api/v1/skill/start \
   -H "Content-Type: application/json" \
   -d '{"skill_name": "deploy_checklist",
        "parameters": {"service_name": "api", "environment": "staging"}}'
 
-# Advance to the next step
 curl -X POST http://localhost:8083/api/v1/skill/next \
   -H "Content-Type: application/json" \
   -d '{"session_id": "...", "user_input": "done"}'
@@ -606,52 +398,57 @@ Place the file in `SkillIntelligence/skills/` — it is imported and registered 
 | `/api/v1/skill/next` | POST | Advance to next step (`completed: true` when done) |
 | `/api/v1/skill/session/{id}` | GET | Current session metadata (step index, total steps) |
 
-### Session persistence
-
-Sessions are stored as JSON files in `~/.intelligence_suite/skill_sessions/`.
-They survive server restarts — users can resume from where they left off.
-The session file is deleted automatically when all steps are completed.
+Sessions are stored as JSON files in `~/.intelligence_suite/skill_sessions/`, survive server
+restarts, and are deleted automatically when all steps are completed.
 
 ---
 
-## Intent Routing — come funziona
+## AgentIntelligence — multi-hop ReAct agent
 
-Starting from v0.4.0, every `/api/v1/query` request is transparently classified before
-being answered. The user writes in the chat as always; the routing is invisible.
+For questions a single retrieval can't answer ("what breaks if I change function X?",
+"compare how auth works in the code vs the docs"), AgentIntelligence runs a real **ReAct loop**:
+it reasons, calls tools, observes results, and iterates until it can answer.
 
-### The three levels
+| Tool | Purpose |
+|---|---|
+| `search_code` | Semantic search over the code domain |
+| `search_docs` | Semantic search over the doc domain |
+| `search_practices` | Semantic search over the mentor domain |
+| `analyze_impact` | Walks the reverse call graph — "what depends on this?" (requires `[graph]`) |
+
+```bash
+ai-serve                              # http://localhost:8084
+
+curl -X POST http://localhost:8084/api/v1/agent/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What breaks if I change the verify_token function?"}'
+```
+
+The agent is also reachable transparently through Intent Routing (see below) when a query is
+classified as a complex multi-domain analysis.
+
+---
+
+## Intent Routing
+
+Every `/api/v1/query` request is transparently classified before being answered. The user writes
+in the chat as always; the routing is invisible.
 
 | Level | When | Result |
 |---|---|---|
-| **RAG** | Simple factual question | Standard retrieval + LLM answer (unchanged) |
-| **SKILL** | Procedural request ("guidami", "step by step", "how do I…") | SkillSession started, first step returned as text |
-| **AGENT** | Complex multi-domain analysis | Real ReAct agent (v0.5.0+) — multi-hop tool calling; enable with `INTENT_AGENT_ENABLED=true` |
+| **RAG** | Simple factual question | Standard retrieval + LLM answer |
+| **SKILL** | Procedural request ("guide me", "step by step", "how do I…") | SkillSession started, first step returned as text |
+| **AGENT** | Complex multi-domain analysis | ReAct agent — multi-hop tool calling; enable with `INTENT_AGENT_ENABLED=true` |
 
-### Two-stage classification
-
-1. **Heuristic (0 ms, no LLM call)** — keyword triggers and structural rules. If confidence
-   ≥ 0.85 the result is used directly.
+**Two-stage classification:**
+1. **Heuristic (0 ms, no LLM call)** — keyword triggers and structural rules. If confidence ≥ 0.85 the result is used directly.
 2. **LLM call (~300 ms)** — minimal prompt, called only for ambiguous cases (confidence < 0.85).
 
 Any failure (LLM timeout, bad JSON, network error) silently falls back to RAG — the request
-always gets an answer.
+always gets an answer. Disable entirely with `INTENT_ROUTING=false` in `.env`.
 
-### Disable routing
-
-Set `INTENT_ROUTING=false` in your `.env` file. When disabled, all requests go through the
-standard RAG path with zero overhead — behavior identical to v0.3.x.
-
-```bash
-# .env
-INTENT_ROUTING=false
-```
-
-### Missing Skill parameters
-
-When routing detects a SKILL intent but cannot extract all required parameters from the query,
-instead of starting the session it asks the user in natural language:
-
-> "Per guidarti nel processo 'deploy_api' ho bisogno di sapere: **service**, **environment**."
+When routing detects a SKILL intent but cannot extract all required parameters, it asks the user
+in natural language instead of starting the session.
 
 ---
 
@@ -667,12 +464,11 @@ ci-graph --stats                 # build the graph and print node/edge stats
 ci-graph --top-critical 10       # show the 10 most-called functions (impact hotspots)
 ```
 
-Once the graph exists, the retriever automatically performs **GraphRAG**: after the semantic search,
-it expands the context with structurally-related nodes (callers + callees) of the top hits. This is
-fully optional and non-breaking — if the graph is missing or fails, retrieval proceeds unchanged.
-
-The agent also exposes an `analyze_impact` tool that answers "what breaks if I change function X?"
-by walking the reverse call graph.
+Once the graph exists, the retriever automatically performs **GraphRAG**: after the semantic search
+it expands the context with structurally-related nodes (callers + callees) of the top hits. Fully
+optional and non-breaking — if the graph is missing or fails, retrieval proceeds unchanged. The
+agent's `analyze_impact` tool answers "what breaks if I change function X?" by walking the reverse
+call graph.
 
 ---
 
@@ -696,27 +492,24 @@ previous run; the command exits non-zero if any target is missed (CI-friendly).
 
 ## What a chunk looks like
 
-Every source file and every document is converted into self-contained **semantic chunks**
-with a unified schema:
+Every source file and document is converted into self-contained **semantic chunks** with a
+unified schema:
 
 ```json
 {
-  "id":         "code::function::myrepo/auth/jwt.py::verify_token",
+  "id":         "code::function::myrepo.auth.jwt.verify_token",
   "domain":     "code",
   "type":       "function",
-  "text":       "### verify_token\n\n**Description:** Validates a JWT and returns the decoded payload.\n```python\ndef verify_token(token: str) -> dict:\n    ...\n```",
+  "text":       "### verify_token\n\n```python\ndef verify_token(token: str) -> dict:\n    ...\n```",
   "source":     "auth/jwt.py",
   "language":   "python",
   "metadata": {
-    "symbol":     "verify_token",
-    "start_line": 42,
-    "end_line":   67,
-    "decorators": ["@router.get"],
-    "calls":      ["jwt.decode", "raise_for_status"]
-  },
-  "embedding":  [0.012, -0.034, "..."],
-  "indexed_at": "2025-05-01T10:22:00Z",
-  "checksum":   "9ff7ac4fe71b"
+    "name":       "verify_token",
+    "line_start": 42,
+    "line_end":   67,
+    "calls":      ["jwt.decode", "raise_for_status"],
+    "imports":    ["jwt"]
+  }
 }
 ```
 
@@ -724,98 +517,11 @@ with a unified schema:
 
 | Domain | Types |
 |---|---|
-| `code` | `module`, `class`, `function`, `method`, `config`, `schema` |
+| `code` | `function`, `class`, `interface`, `config_block`, `module`, `file` |
 | `doc` | `section`, `table`, `paragraph` |
-| `mentor` | `practice`, `path`, `session` |
-| `api` | `endpoint`, `schema` |
-| `data` | `table`, `view` |
+| `mentor` | `practice`, `onboarding_step`, `role_guide`, `faq`, `glossary` |
 
----
-
-## Integration examples
-
-### Ollama — fully local, zero cost
-
-```python
-# .env: LLM_BACKEND=ollama  OLLAMA_MODEL=qwen2.5-coder:7b
-from intelligence_core.retriever import Retriever
-from intelligence_core.llm import get_llm_provider
-
-retriever = Retriever.load_default(collection_name="code_intelligence")
-llm       = get_llm_provider()          # reads LLM_BACKEND from .env
-
-hits    = retriever.search("How is the database connection pooled?", domain="code", top_k=5)
-context = "\n\n".join(h.chunk["text"] for h in hits)
-answer  = llm.generate("How is the database connection pooled?", context)
-
-print(answer)
-for h in hits:
-    print(f"  [{h.chunk['source']}] score={h.score:.2f}")
-```
-
-### OpenAI / Groq / Mistral / any OpenAI-compatible API
-
-```python
-# .env: LLM_BACKEND=openai  OPENAI_API_KEY=sk-...  OPENAI_MODEL=gpt-4o
-from intelligence_core.llm import get_llm_provider
-from intelligence_core.retriever import Retriever
-
-retriever = Retriever.load_default(collection_name="doc_intelligence")
-llm       = get_llm_provider()          # OpenAICompatProvider
-# For Groq:      set OPENAI_BASE_URL=https://api.groq.com/openai/v1
-# For Mistral:   set OPENAI_BASE_URL=https://api.mistral.ai/v1
-
-hits   = retriever.search("Explain the payment flow", domain="doc", top_k=8)
-answer = llm.generate("Explain the payment flow", "\n\n".join(h.chunk["text"] for h in hits))
-```
-
-### vLLM — local GPU server
-
-```python
-# .env: LLM_BACKEND=vllm
-#        OPENAI_BASE_URL=http://localhost:8000/v1
-#        OPENAI_MODEL=mistralai/Mistral-7B-Instruct-v0.2
-from intelligence_core.llm import get_llm_provider
-
-llm = get_llm_provider("vllm")   # OpenAI-compat client → your vLLM server
-```
-
-### Claude API
-
-```python
-# .env: LLM_BACKEND=claude  ANTHROPIC_API_KEY=sk-ant-...  CLAUDE_MODEL=claude-opus-4-5
-from intelligence_core.llm import get_llm_provider
-from intelligence_core.retriever import Retriever
-
-retriever = Retriever.load_default(collection_name="code_intelligence")
-llm       = get_llm_provider("claude")
-
-hits   = retriever.search("Explain the entire auth flow", domain="code", top_k=8)
-answer = llm.generate("Explain the entire auth flow", "\n\n".join(h.chunk["text"] for h in hits))
-```
-
-### LangChain / LlamaIndex
-
-```python
-from intelligence_core.retriever import Retriever
-from langchain.schema import Document
-
-retriever = Retriever.load_default(collection_name="doc_intelligence")
-hits = retriever.search("Deploy prerequisites", domain="doc", top_k=10)
-
-docs = [
-    Document(
-        page_content=h.chunk["text"],
-        metadata={
-            "source": h.chunk["source"],
-            "domain": h.chunk["domain"],
-            "type":   h.chunk["type"],
-        },
-    )
-    for h in hits
-]
-# → pass docs to any LangChain chain or LlamaIndex index
-```
+The chunk ID is deterministic — `domain::type::locator` — so re-indexing is idempotent and dedup-friendly.
 
 ---
 
@@ -857,12 +563,12 @@ MI_LLM_BACKEND=claude
 MI_LLM_MODEL=claude-sonnet-4-5
 ```
 
-Any OpenAI-compatible endpoint (vLLM, Groq, Mistral AI, LM Studio, Azure…) works by setting `*_LLM_BACKEND=openai` and `*_LLM_BASE_URL` to the endpoint.
-
 ### Escalation
 
-When retrieval confidence < `ESCALATION_THRESHOLD` and `ANTHROPIC_API_KEY` is set,
-the system automatically escalates to Claude — regardless of the primary `LLM_BACKEND`.
+When retrieval confidence < `ESCALATION_THRESHOLD` and `ANTHROPIC_API_KEY` is set, the system
+automatically escalates to Claude — regardless of the primary `LLM_BACKEND`.
+
+---
 
 ## Embedding backends
 
@@ -874,22 +580,13 @@ the system automatically escalates to Claude — regardless of the primary `LLM_
 
 ### Multilingual support
 
-By default the embedding model is English-optimised. To query and answer in Italian
-(or any of 50+ languages), switch to a multilingual SentenceTransformer model:
+By default the embedding model is English-optimised. To query and answer in Italian (or any of
+50+ languages), switch to a multilingual SentenceTransformer model:
 
 ```env
-# .env
 EMBED_BACKEND=st
 ST_MODEL=paraphrase-multilingual-MiniLM-L12-v2   # 50+ languages, same speed as default
-# ST_MODEL=paraphrase-multilingual-mpnet-base-v2  # higher quality, 768-dim
 ```
-
-```bash
-pip install "intelligence-suite[st]"
-```
-
-Then re-run `ci-embed` (or `di-embed`) to rebuild the index with multilingual embeddings.
-The LLM will automatically respond in the language of the question — no extra configuration needed.
 
 | Model | Languages | Dimensions | Speed |
 |---|---|---|---|
@@ -897,43 +594,19 @@ The LLM will automatically respond in the language of the question — no extra 
 | `paraphrase-multilingual-MiniLM-L12-v2` | 50+ (IT, FR, ES, DE, …) | 384 | ⚡ Fast |
 | `paraphrase-multilingual-mpnet-base-v2` | 50+ | 768 | 🐢 Slower, higher quality |
 
-> **Note:** switching embedding model requires re-indexing from scratch — the vector
-> dimensions may change (384 → 768) and ChromaDB will reject mixed-dimension collections.
-> Delete the data directory before re-running `ci-embed` with a new model:
+> **Note:** switching embedding model requires re-indexing from scratch — the vector dimensions
+> may change (384 → 768) and ChromaDB will reject mixed-dimension collections. Delete the data
+> directory before re-running `ci-embed`:
 > ```bash
-> # Linux / macOS
-> rm -rf ~/.intelligence_suite/chroma
-> # Windows (PowerShell)
-> Remove-Item -Recurse -Force "$HOME\.intelligence_suite\chroma"
+> rm -rf ~/.intelligence_suite/chroma                              # Linux / macOS
+> Remove-Item -Recurse -Force "$HOME\.intelligence_suite\chroma"   # Windows PowerShell
 > ```
 
 ### Vector store
 
-| Store | Status | Notes |
-|---|---|---|
-| **ChromaDB** | ✅ Default | Embedded — runs inside the Python process, persists to `~/.intelligence_suite/chroma` |
-| **pgvector** | 🔶 v0.2 | Enterprise, multi-tenant, PostgreSQL-native |
-| **Neo4j (Graph)** | 🔶 v0.3 | Code call graph, import graph, doc cross-references — hybrid retrieval |
-
-> ChromaDB runs **embedded** — no separate server or Docker container needed.  
-> Data is persisted to `~/.intelligence_suite/chroma` automatically and survives restarts.  
-> Override the path with `CHROMA_PERSIST_DIR=/your/path` in `.env`.
-
----
-
-## Design principles
-
-| Principle | Implementation |
-|---|---|
-| **On-premise first** | Ollama + ChromaDB by default — no cloud required |
-| **Domain-aware chunking** | Every chunk carries `domain` — prevents cross-contamination in retrieval |
-| **Deterministic IDs** | `domain::type::locator` — safe to re-index, dedup-friendly |
-| **3-level PDF parsing** | pdfplumber → OCR → raw binary — never silently drops a page |
-| **Fail-safe ingestion** | One broken file never crashes the pipeline |
-| **Fail-loud embedding** | `OllamaEmbedder` raises immediately if unreachable — never stores zero vectors |
-| **Graceful escalation** | Stays local until similarity drops below threshold, then escalates to Claude API |
-| **CORS-enabled API** | All three FastAPI servers include `CORSMiddleware` — embeddable in any dashboard |
-| **Modular** | Each module is independently installable and deployable |
+ChromaDB runs **embedded** — no separate server or Docker container needed. Data persists to
+`~/.intelligence_suite/chroma` automatically and survives restarts. Override the path with
+`CHROMA_PERSIST_DIR=/your/path` in `.env`.
 
 ---
 
@@ -960,20 +633,23 @@ EMBED_BACKEND=ollama
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_EMBED_MODEL=nomic-embed-text
 
-# Vector store
+# Vector store — default path: ~/.intelligence_suite/chroma (absolute, CWD-independent)
 VECTOR_STORE=chromadb
-# Default path: ~/.intelligence_suite/chroma  (absolute — CWD-independent)
-# Uncomment to override:
 # CHROMA_PERSIST_DIR=/custom/path/chroma
 
 # Escalation: fallback to Claude when confidence < threshold
 ESCALATION_THRESHOLD=0.70
 
-# Server ports — all four can run simultaneously
-CI_PORT=8080   # CodeIntelligence
-DI_PORT=8081   # DocIntelligence
-MI_PORT=8082   # MentorIntelligence
-SI_PORT=8083   # SkillIntelligence
+# Intent routing
+INTENT_ROUTING=true
+INTENT_AGENT_ENABLED=true
+
+# Server ports — all five can run simultaneously
+CI_PORT=8080      # CodeIntelligence
+DI_PORT=8081      # DocIntelligence
+MI_PORT=8082      # MentorIntelligence
+SI_PORT=8083      # SkillIntelligence
+AGENT_PORT=8084   # AgentIntelligence
 ```
 
 All variables are accepted as plain environment variables too — no `.env` file required in CI/CD.
@@ -999,6 +675,96 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 ---
 
+## Design principles
+
+| Principle | Implementation |
+|---|---|
+| **On-premise first** | Ollama + ChromaDB by default — no cloud required |
+| **Domain-aware chunking** | Every chunk carries `domain` — prevents cross-contamination in retrieval |
+| **Deterministic IDs** | `domain::type::locator` — safe to re-index, dedup-friendly |
+| **3-level PDF parsing** | pdfplumber → OCR → raw binary — never silently drops a page |
+| **Fail-safe ingestion** | One broken file never crashes the pipeline |
+| **Fail-loud embedding** | `OllamaEmbedder` raises immediately if unreachable — never stores zero vectors |
+| **Graceful escalation** | Stays local until similarity drops below threshold, then escalates to Claude API |
+| **Non-breaking extras** | Tree-sitter, graph, and eval are opt-in — absence degrades gracefully, never crashes |
+| **CORS-enabled API** | All FastAPI servers include `CORSMiddleware` — embeddable in any dashboard |
+
+---
+
+## Troubleshooting
+
+### CLI scripts not found after install (Windows)
+
+pip installs CLI scripts in a user-level Scripts folder that may not be on `PATH`. Add it once:
+
+```powershell
+$scripts = "$env:APPDATA\Python\$(python -c 'import sys; print(f\"Python{sys.version_info.major}{sys.version_info.minor}\")')\Scripts"
+$current = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($current -notlike "*$scripts*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$current;$scripts", "User")
+    Write-Host "PATH updated — reopen your terminal."
+}
+```
+
+Or run modules directly without touching PATH: `python -m CodeIntelligence.rag_server`, etc.
+
+### Ollama not reachable during embedding
+
+If `ci-embed` / `di-embed` raises a `RuntimeError`, Ollama is not running or the model is not
+pulled. The embedder **fails loudly** (no silent zero-vector storage):
+
+```bash
+ollama serve && ollama pull nomic-embed-text   # Fix 1: start Ollama
+# Fix 2: set EMBED_BACKEND=st in .env (offline, no server required)
+```
+
+### ChromaDB DuplicateIDError on embed
+
+Your `chunks.jsonl` contains duplicate IDs — usually because `python -m build` was run inside the
+repo before indexing, so `build/lib/` got indexed alongside the real sources.
+
+```bash
+rm -rf build/ dist/ ~/.intelligence_suite/chroma
+ci-parse /path/to/repo && ci-embed
+```
+
+From `0.1.2` onwards, `parse_repo` automatically excludes `build/`, `dist/`, `venv/`, and other
+non-source directories.
+
+---
+
+## Test suite
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
+# 257 passed, 5 skipped (KPI — require indexed store), 0 failed
+```
+
+---
+
+## Architecture
+
+```
+IntelligenceSuite/
+├── intelligence_core/       # Shared layer
+│   ├── parsers/             #   class-based Tree-sitter parsers (TS, Go, Java, Rust)
+│   ├── graph/               #   NetworkX dependency graph + GraphRAG + ci-graph CLI
+│   └── evaluation/          #   RAGAS pipeline (ci-eval)
+├── CodeIntelligence/        # Code RAG: Python AST + Tree-sitter/regex, YAML, SQL, MD parsers
+├── DocIntelligence/         # Doc RAG: PDF (3-level), DOCX, XLSX, TXT
+├── MentorIntelligence/      # Adaptive onboarding: profile, session, path, orchestrator
+├── SkillIntelligence/       # Procedural guidance: skill registry, executor, cross-domain RAG
+│   └── skills/              #   bundled Python skill definitions
+├── AgentIntelligence/       # ReAct agent: tool calling, multi-hop reasoning, ai-serve
+├── intelligence_eval/       # Eval runner (is-eval)
+├── intelligence_ui/         # Launcher dashboard (port 8079)
+├── skill_docs/              # Bundled Markdown skill templates
+└── practices/               # Bundled best-practice docs for MentorIntelligence
+```
+
+---
+
 ## KPI targets
 
 | Metric | CodeIntelligence | DocIntelligence |
@@ -1013,165 +779,10 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 ---
 
-## Hardware requirements
-
-| Scenario | Hardware |
-|---|---|
-| Dev / local testing | Mac or PC, 16 GB RAM |
-| Team 1–10 | Linux server, 32 GB RAM |
-| Team 10–50 (GPU) | RTX 3090/4090 + 64 GB RAM |
-| Team 50+ | pgvector (roadmap) + dedicated GPU |
-
----
-
-## Troubleshooting
-
-### `ci-serve` / `di-serve` / `mi-serve` not found after install
-
-On Windows, pip installs CLI scripts in a user-level Scripts folder that may not be on `PATH`.
-You will see this warning during `pip install`:
-
-```
-WARNING: The scripts ci-serve.exe, ci-parse.exe ... are installed in
-'C:\Users\<you>\AppData\Roaming\Python\Python3xx\Scripts'
-which is not on PATH.
-```
-
-**Fix — add the Scripts folder to your PATH (run once in PowerShell):**
-
-```powershell
-$scripts = "$env:APPDATA\Python\$(python -c 'import sys; print(f\"Python{sys.version_info.major}{sys.version_info.minor}\")')\Scripts"
-$current = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($current -notlike "*$scripts*") {
-    [Environment]::SetEnvironmentVariable("PATH", "$current;$scripts", "User")
-    Write-Host "PATH updated — reopen your terminal."
-}
-```
-
-Then **reopen your terminal** and `ci-serve` will work.
-
-**Quick fix without reopening (current session only):**
-
-```powershell
-$env:PATH += ";$env:APPDATA\Python\$(python -c 'import sys; print(f\"Python{sys.version_info.major}{sys.version_info.minor}\")')\Scripts"
-```
-
-**Alternative — run without modifying PATH:**
-
-```powershell
-python -m CodeIntelligence.rag_server   # instead of ci-serve
-python -m DocIntelligence.doc_server    # instead of di-serve
-python -m MentorIntelligence.mentor_server  # instead of mi-serve
-```
-
----
-
-### Ollama not reachable during embedding
-
-If `ci-embed` (or `di-embed`) raises a `RuntimeError` like:
-
-```
-OllamaEmbedder: cannot reach http://localhost:11434 (model=nomic-embed-text).
-  Fix 1: ollama serve && ollama pull nomic-embed-text
-  Fix 2: set EMBED_BACKEND=st in .env (offline, no server required)
-```
-
-Ollama is not running or the model is not pulled. The embedder **fails loudly** (no silent
-zero-vector storage) so you always know immediately when there is a problem.
-
-**Fix 1 — Start Ollama:**
-
-```bash
-ollama serve                       # start Ollama
-ollama pull nomic-embed-text       # pull the embedding model if not present
-```
-
-**Fix 2 — Switch to the CPU-only offline embedder (no Ollama needed):**
-
-```bash
-pip install "intelligence-suite[st]"
-# set in .env:
-EMBED_BACKEND=st
-```
-
----
-
-### ChromaDB DuplicateIDError on embed
-
-If `ci-embed` raises `DuplicateIDError`, your `chunks.jsonl` contains duplicate chunk IDs.
-This can happen if you ran `python -m build` inside the repo before indexing —
-the `build/lib/` directory gets indexed alongside the real sources.
-
-```bash
-# Clean build artefacts and the ChromaDB data directory, then re-index
-rm -rf build/ dist/
-rm -rf ~/.intelligence_suite/chroma          # Linux / macOS
-# Remove-Item -Recurse -Force "$HOME\.intelligence_suite\chroma"  # Windows PowerShell
-
-ci-parse /path/to/repo
-ci-embed
-```
-
-From version `0.1.2` onwards, `parse_repo` automatically excludes `build/`, `dist/`,
-`venv/`, and other non-source directories.
-
----
-
-## Test suite
-
-```bash
-pip install -e ".[dev]"
-pytest tests/ -v
-# 101 passed, 5 skipped (KPI — require indexed store), 0 failed
-```
-
----
-
-## Architecture
-
-```
-IntelligenceSuite/
-├── intelligence_core/       # Shared: chunk schema, embedder, ChromaDB, retriever, escalation
-├── CodeIntelligence/        # Code RAG: Python AST, TS, Go, YAML, SQL, MD parsers
-├── DocIntelligence/         # Doc RAG: PDF (3-level), DOCX, XLSX, TXT
-├── MentorIntelligence/      # Adaptive onboarding: profile, session, path, orchestrator
-├── SkillIntelligence/       # Procedural guidance: skill registry, executor, cross-domain RAG
-│   └── skills/              # Bundled Python skill definitions
-├── skill_docs/              # Bundled Markdown skill templates
-└── intelligence_ui/         # Launcher dashboard (port 8079)
-```
-
----
-
-## Roadmap
-
-### POC → Production evolution
-
-| Version | Milestone | Enterprise target |
-|---|---|---|
-| `0.2.x` | Launcher dashboard · multi-conversation sidebar · per-module LLM routing · multilingual embeddings · streaming chat UI · absolute ChromaDB path | ✅ Shipped |
-| `0.3.0` | **SkillIntelligence** — step-by-step procedural guidance with cross-domain RAG · `si-serve` / `si-ingest` CLI · Markdown skill authoring | ✅ Shipped |
-| `0.4.0` | pgvector · multi-tenant namespacing · JWT auth · Docker Compose | Teams 1–50, shared infra |
-| `0.5.0` | Graph layer (Neo4j) · hybrid vector+graph retrieval · async embedding queue | Code dependency traversal, multi-hop reasoning |
-| `0.6.0` | vLLM GPU serving · OpenTelemetry tracing · Prometheus metrics · GitHub/GitLab webhook | Teams 50+, GPU cluster |
-| `1.0.0` | Kubernetes · horizontal scaling · SLA-tested · full observability | Production enterprise |
-
-### Why graph in v0.3?
-
-Vector search answers *"what is similar to my query?"*  
-Graph traversal answers *"what calls this function? what depends on this module? what documents reference this procedure?"*
-
-`parse_repo` already extracts `calls`, `imports`, and `decorators` for every chunk —
-the foundation for a full **code dependency graph** is already in place.
-Combined with vector similarity (GraphRAG pattern), this unlocks multi-hop reasoning
-that pure vector search cannot achieve.
-
----
-
 ## License
 
 MIT — see [LICENSE](LICENSE)
 
 ---
 
-> See [ARCHITECTURE.md](ARCHITECTURE.md) for design decisions and [docs/](docs/) for presentations.
+> See [CHANGELOG.md](CHANGELOG.md) for version history and [ARCHITECTURE.md](ARCHITECTURE.md) for design decisions.
