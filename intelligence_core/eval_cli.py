@@ -21,6 +21,12 @@ def main():
     )
     args = parser.parse_args()
 
+    print(
+        "Avvio RAGAS evaluation… caricamento moduli "
+        "(il primo import può richiedere ~20-60s)",
+        flush=True,
+    )
+
     from intelligence_core.evaluation.evaluator import evaluate_results
     from intelligence_core.evaluation.generator import generate_testset
     from intelligence_core.evaluation.ragas_factory import (

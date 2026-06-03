@@ -60,6 +60,9 @@ def _to_scores_dict(scores) -> dict:
     """
     try:
         return {k: float(v) for k, v in dict(scores).items()}
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, KeyError):
+        # RAGAS 0.2 EvaluationResult: dict(scores) lo itera per indice intero
+        # (scores[0] -> KeyError 0). Fallback robusto sulla media per metrica,
+        # che ignora i NaN dei sample andati in TimeoutError.
         df = scores.to_pandas()
         return {m: float(df[m].mean()) for m in KPI_TARGETS if m in df.columns}

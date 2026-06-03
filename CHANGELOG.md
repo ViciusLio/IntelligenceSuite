@@ -10,6 +10,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.2] — 2026-06-03
+
+### Added
+- `ci-eval` stampa un messaggio di avvio (con `flush`) prima degli import pesanti
+  di RAGAS/LangChain, così il comando non sembra bloccato durante il cold import
+  (~20-60s al primo avvio).
+
+### Fixed
+- **`ci-eval` crashava a fine evaluation** con `KeyError: 0`: `_to_scores_dict`
+  faceva `dict(scores)` sull'`EvaluationResult` di RAGAS 0.2, che viene iterato
+  per indice intero. L'`except` ora cattura anche `KeyError` e usa il fallback
+  robusto su `to_pandas()`, che calcola la media per metrica ignorando i NaN dei
+  sample finiti in `TimeoutError`.
+
+### Security
+- `.gitignore`: aggiunto `tests/eval/*.jsonl`. I testset RAGAS sono generati dal
+  corpus indicizzato e possono contenere contenuto riservato — esclusi dal repo.
+
+---
+
 ## [0.7.1] — 2026-06-03
 
 ### Added

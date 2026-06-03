@@ -41,6 +41,10 @@ doc_chunks.jsonl
 mentor_chunks.jsonl
 " - Copia.env"
 
+# Testset RAGAS generati dal corpus indicizzato — possono contenere
+# contenuto riservato (codice/doc aziendali). MAI nel repo.
+tests/eval/*.jsonl
+
 # Test artifacts
 .pytest_cache/
 .mypy_cache/
