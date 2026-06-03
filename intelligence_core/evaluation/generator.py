@@ -8,6 +8,7 @@ generate_with_langchain_docs(documents, testset_size=...).
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 from typing import Literal
 
@@ -15,11 +16,23 @@ from intelligence_core.evaluation.paths import get_chunks_path
 
 Domain = Literal["code", "doc", "mentor"]
 
+# Number of source documents fed into the RAGAS knowledge-graph builder.
+# RAGAS builds a KG over every document and then runs find_indirect_clusters,
+# a recursive DFS whose cost explodes on large/dense graphs (it effectively
+# hangs at ~1000+ nodes). Capping the corpus keeps generation tractable —
+# a few hundred docs is far more than enough for a 50-question testset.
+DEFAULT_MAX_DOCS = 150
+# Chunks shorter than this can't get a meaningful summary from RAGAS
+# ("Node ... does not have a summary"), which over-connects the graph.
+DEFAULT_MIN_CHARS = 100
+
 
 def generate_testset(
     domain: Domain,
     test_size: int = 50,
     force_regenerate: bool = False,
+    max_docs: int = DEFAULT_MAX_DOCS,
+    min_chunk_chars: int = DEFAULT_MIN_CHARS,
 ) -> list[dict]:
     cache_path = Path(f"tests/eval/{domain}_testset.jsonl")
 
@@ -34,8 +47,17 @@ def generate_testset(
             f"Esegui prima: ci-parse e ci-embed."
         )
 
-    documents = _load_chunks_as_documents(chunks_path)
-    print(f"Caricati {len(documents)} documenti per '{domain}'")
+    documents = _load_chunks_as_documents(chunks_path, min_chars=min_chunk_chars)
+    print(
+        f"Caricati {len(documents)} documenti per '{domain}' "
+        f"(dopo filtro lunghezza >= {min_chunk_chars} caratteri)"
+    )
+
+    documents = _cap_documents(documents, max_docs)
+    print(
+        f"Uso {len(documents)} documenti per costruire il knowledge graph RAGAS "
+        f"(cap: {max_docs})"
+    )
 
     from ragas.testset import TestsetGenerator
 
@@ -70,7 +92,7 @@ def _normalize_row(row: dict) -> dict:
     }
 
 
-def _load_chunks_as_documents(chunks_path: Path) -> list:
+def _load_chunks_as_documents(chunks_path: Path, min_chars: int = 0) -> list:
     from langchain_core.documents import Document
 
     documents = []
@@ -79,9 +101,12 @@ def _load_chunks_as_documents(chunks_path: Path) -> list:
             if not line.strip():
                 continue
             chunk = json.loads(line)
+            text = chunk.get("text", "")
+            if len(text.strip()) < min_chars:
+                continue
             documents.append(
                 Document(
-                    page_content=chunk["text"],
+                    page_content=text,
                     metadata={
                         "source": chunk.get("source", ""),
                         "type": chunk.get("type", ""),
@@ -89,6 +114,14 @@ def _load_chunks_as_documents(chunks_path: Path) -> list:
                     },
                 )
             )
+    return documents
+
+
+def _cap_documents(documents: list, max_docs: int) -> list:
+    """Deterministically sample down to max_docs so the RAGAS knowledge graph
+    stays small enough that find_indirect_clusters terminates quickly."""
+    if max_docs and len(documents) > max_docs:
+        return random.Random(42).sample(documents, max_docs)
     return documents
 
 

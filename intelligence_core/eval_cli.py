@@ -12,6 +12,13 @@ def main():
     parser.add_argument("--samples", type=int, default=50)
     parser.add_argument("--regenerate", action="store_true")
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument(
+        "--max-docs",
+        type=int,
+        default=150,
+        help="Tetto di documenti per il knowledge graph RAGAS (default 150). "
+        "Valori alti su corpus grandi fanno esplodere find_indirect_clusters.",
+    )
     args = parser.parse_args()
 
     from intelligence_core.evaluation.evaluator import evaluate_results
@@ -34,6 +41,7 @@ def main():
         domain=args.domain,
         test_size=args.samples,
         force_regenerate=args.regenerate,
+        max_docs=args.max_docs,
     )
 
     results = run_testset(testset=testset, domain=args.domain, top_k=args.top_k)
