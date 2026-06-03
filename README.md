@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-159%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-257%20passed-brightgreen.svg)](tests/)
 
 A modular RAG suite for enterprise on-premise environments.  
 Index your codebase and company documents; query them in natural language with precise source citations.
@@ -287,11 +287,12 @@ REST API you can query from any client.
 
 | Module | Domain | Status | Description |
 |---|---|---|---|
-| `intelligence_core` | Shared layer | ✅ Stable | Chunk schema, embedder, ChromaDB store, retriever, escalation policy |
-| `CodeIntelligence` | Source code | ✅ Stable | Python AST + regex parsers for TS, Go, YAML, SQL, MD |
+| `intelligence_core` | Shared layer | ✅ Stable | Chunk schema, embedder, ChromaDB store, retriever, escalation policy, RAGAS evaluation, dependency graph (GraphRAG) |
+| `CodeIntelligence` | Source code | ✅ Stable | Python AST + Tree-sitter parsers for TS, Go, Java, Rust (regex fallback), YAML, SQL, MD |
 | `DocIntelligence` | Company docs | ✅ Stable | PDF (3-level), DOCX, XLSX, TXT ingest pipeline |
 | `MentorIntelligence` | Onboarding | ✅ Stable | Adaptive onboarding — profile detection, sessions, cross-domain path |
 | `SkillIntelligence` | Procedures | ✅ Stable | Step-by-step procedural guidance with cross-domain RAG (code + doc + mentor) |
+| `AgentIntelligence` | Multi-hop agent | ✅ Stable | ReAct agent with tool calling (search_code/docs/practices, analyze_impact) + Qwen3 thinking mode |
 
 ---
 
@@ -313,7 +314,16 @@ pip install "intelligence-suite[claude]"
 # With OCR support (requires tesseract on the system)
 pip install "intelligence-suite[pdf,ocr]"
 
-# Everything
+# Tree-sitter multilanguage parsers (TypeScript, Go, Java, Rust)
+pip install "intelligence-suite[multilang]"
+
+# Dependency graph + GraphRAG context expansion
+pip install "intelligence-suite[graph]"
+
+# RAGAS evaluation pipeline (ci-eval)
+pip install "intelligence-suite[eval]"
+
+# Everything (core extras — does not include eval/multilang, kept opt-in)
 pip install "intelligence-suite[all]"
 
 # Development
@@ -331,12 +341,18 @@ to query your codebase in natural language.
 
 | Language | Parser | Extracts |
 |---|---|---|
-| **Python** | AST-based (precise) | modules, classes, methods, functions, decorators, async |
-| **TypeScript / JS** | Regex | modules, classes, named + arrow functions |
-| **Go** | Regex | packages, functions, method receivers, structs, interfaces |
+| **Python** | AST-based (precise) | modules, classes, methods, functions, decorators, async, call graph |
+| **TypeScript / JS** | Tree-sitter¹ (regex fallback) | functions, methods, call sites |
+| **Go** | Tree-sitter¹ (regex fallback) | functions, method receivers, call sites |
+| **Java** | Tree-sitter¹ | methods, constructors, call sites |
+| **Rust** | Tree-sitter¹ | functions (incl. `impl` methods), call sites |
 | **SQL** | Regex | `CREATE TABLE / VIEW / FUNCTION / PROCEDURE / INDEX` |
 | **YAML** | Heuristic | Docker Compose services, GitHub Actions jobs, K8s manifests |
 | **Markdown** | Heading-based | H1 / H2 / H3 sections |
+
+¹ Requires the `[multilang]` extra (`pip install "intelligence-suite[multilang]"`). When not installed,
+TypeScript/JS and Go fall back to the regex parsers automatically — zero breaking changes. Tree-sitter
+parsers also extract `calls` metadata, which powers the dependency graph (`[graph]`).
 
 ### CLI quickstart
 
@@ -609,7 +625,7 @@ being answered. The user writes in the chat as always; the routing is invisible.
 |---|---|---|
 | **RAG** | Simple factual question | Standard retrieval + LLM answer (unchanged) |
 | **SKILL** | Procedural request ("guidami", "step by step", "how do I…") | SkillSession started, first step returned as text |
-| **AGENT** | Complex multi-domain analysis | Stub in v0.4.x — falls back to RAG with a note |
+| **AGENT** | Complex multi-domain analysis | Real ReAct agent (v0.5.0+) — multi-hop tool calling; enable with `INTENT_AGENT_ENABLED=true` |
 
 ### Two-stage classification
 
@@ -636,6 +652,45 @@ When routing detects a SKILL intent but cannot extract all required parameters f
 instead of starting the session it asks the user in natural language:
 
 > "Per guidarti nel processo 'deploy_api' ho bisogno di sapere: **service**, **environment**."
+
+---
+
+## Dependency graph & GraphRAG (`[graph]`)
+
+CodeIntelligence chunks carry `calls` / `imports` / `bases` metadata. The `[graph]` extra builds a
+directed dependency graph from them with NetworkX, persisted to `~/.intelligence_suite/graph/`.
+
+```bash
+pip install "intelligence-suite[graph]"
+
+ci-graph --stats                 # build the graph and print node/edge stats
+ci-graph --top-critical 10       # show the 10 most-called functions (impact hotspots)
+```
+
+Once the graph exists, the retriever automatically performs **GraphRAG**: after the semantic search,
+it expands the context with structurally-related nodes (callers + callees) of the top hits. This is
+fully optional and non-breaking — if the graph is missing or fails, retrieval proceeds unchanged.
+
+The agent also exposes an `analyze_impact` tool that answers "what breaks if I change function X?"
+by walking the reverse call graph.
+
+---
+
+## RAG quality evaluation with RAGAS (`[eval]`)
+
+Measure retrieval/answer quality objectively on four dimensions: faithfulness, answer relevancy,
+context precision, context recall.
+
+```bash
+pip install "intelligence-suite[eval]"
+
+ci-eval --domain code --samples 50          # generate testset, run, score
+ci-eval --domain doc --regenerate           # force-regenerate the cached testset
+```
+
+KPI targets: faithfulness ≥ 0.75, answer_relevancy ≥ 0.75, context_precision ≥ 0.70,
+context_recall ≥ 0.68. Reports are saved under `~/.intelligence_suite/eval/` with a delta vs the
+previous run; the command exits non-zero if any target is missed (CI-friendly).
 
 ---
 
@@ -937,6 +992,9 @@ All variables are accepted as plain environment variables too — no `.env` file
 | `mi-serve` | MentorIntelligence | Start the mentor server on `MI_PORT` (default 8082) |
 | `si-ingest <dir>` | SkillIntelligence | Load / list Markdown skills from a directory |
 | `si-serve` | SkillIntelligence | Start the skill guidance server on `SI_PORT` (default 8083) |
+| `ai-serve` | AgentIntelligence | Start the ReAct agent server on `AGENT_PORT` (default 8084) |
+| `ci-eval` | intelligence_core | Run the RAGAS evaluation pipeline (requires `[eval]`) |
+| `ci-graph` | intelligence_core | Build the dependency graph + stats (requires `[graph]`) |
 | `is-launch` | Launcher | Dashboard to start/stop/monitor all modules — port 8079 |
 
 ---
