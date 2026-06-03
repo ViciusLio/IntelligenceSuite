@@ -18,6 +18,70 @@ code + docs  →  parse  →  chunks  →  embed  →  ChromaDB  →  REST API  
 
 ---
 
+## How it works
+
+IntelligenceSuite is built in **two layers**: a shared engine (`intelligence_core`) that
+implements the entire RAG pipeline once, and a set of **domain modules** (Code, Doc, Mentor,
+Skill, Agent) that reuse that engine and only add domain-specific parsing and an API surface.
+Everything runs **on-premise by default** — Ollama for inference, ChromaDB embedded for storage.
+
+### 1 · Ingest — *one-time, offline*
+
+Your code, documents and team practices are parsed into a **unified chunk schema**, embedded into
+vectors, and stored in **per-domain ChromaDB collections**.
+
+```mermaid
+flowchart LR
+    SRC["💻 Source code"]   --> P1["Parser<br/>AST · Tree-sitter · regex"]
+    DOC["📄 Documents"]     --> P2["Parser<br/>PDF · DOCX · XLSX · MD"]
+    PRA["📘 Practices"]     --> P3["Ingest<br/>Markdown sections"]
+    P1 --> CH["chunks.jsonl<br/><i>unified schema</i>"]
+    P2 --> CH
+    P3 --> CH
+    CH --> EMB["Embedder<br/>Ollama · ST · Voyage"]
+    EMB --> DB[("ChromaDB<br/>per-domain collections")]
+
+    classDef src fill:#1e3a5f,stroke:#4a90d9,color:#fff;
+    classDef proc fill:#2d2d3a,stroke:#7c7c9c,color:#fff;
+    classDef store fill:#1f4d3a,stroke:#3fb27f,color:#fff;
+    class SRC,DOC,PRA src;
+    class P1,P2,P3,CH,EMB proc;
+    class DB store;
+```
+
+### 2 · Query — *live, per request*
+
+Every question is **routed**, **retrieved**, **reranked**, optionally **expanded** via the
+dependency graph, then **answered** by the LLM with source citations — escalating to Claude only
+when local confidence is too low.
+
+```mermaid
+flowchart TD
+    Q["🧑 User question"] --> IR["🧭 Intent Routing<br/>RAG · SKILL · AGENT"]
+    IR --> RET["🔍 Retriever / MultiRetriever<br/>vector search · candidate pool"]
+    DB[("ChromaDB")] -.-> RET
+    RET --> RR["🎯 Reranker<br/>cross-encoder re-order"]
+    RR --> GR["🕸️ GraphRAG<br/>callers + callees"]
+    GR --> LLM["🤖 LLM generation<br/>Ollama · OpenAI · vLLM · Claude"]
+    LLM --> ESC{"confidence<br/>below threshold?"}
+    ESC -->|"yes + Claude key"| CL["☁️ Escalate to Claude"]
+    ESC -->|no| ANS["✅ Answer + source citations + confidence<br/><i>JSON / streamed over SSE</i>"]
+    CL --> ANS
+
+    classDef inp fill:#1e3a5f,stroke:#4a90d9,color:#fff;
+    classDef proc fill:#2d2d3a,stroke:#7c7c9c,color:#fff;
+    classDef gen fill:#4a2d5f,stroke:#a96fd9,color:#fff;
+    classDef out fill:#1f4d3a,stroke:#3fb27f,color:#fff;
+    class Q,DB inp;
+    class IR,RET,RR,GR proc;
+    class LLM,CL gen;
+    class ANS out;
+```
+
+A more detailed per-component breakdown lives in [Architecture](#architecture) below.
+
+---
+
 ## ⚡ Quick Start
 
 ### Prerequisites
@@ -751,34 +815,7 @@ pytest tests/ -v
 
 ## Architecture
 
-IntelligenceSuite is built in **two layers**: a shared engine (`intelligence_core`) that
-implements the entire RAG pipeline once, and a set of **domain modules** (Code, Doc, Mentor,
-Skill, Agent) that reuse that engine and only add domain-specific parsing and API surface.
-Everything runs **on-premise by default** — Ollama for inference, ChromaDB embedded for storage.
-
-### The big picture
-
-```
-                 ┌──────────────────────── INGEST (one-time, offline) ─────────────────────────┐
-  source code ──►│ parser (AST / Tree-sitter / regex)                                           │
-  documents   ──►│ parser (PDF 3-level / DOCX / XLSX / MD)   ──►  chunks.jsonl  ──►  embedder    │──► ChromaDB
-  practices   ──►│ ingest (Markdown ## sections)                 (unified schema)  (vectors)    │   (per-domain
-                 └──────────────────────────────────────────────────────────────────────────────┘   collections)
-                                                                                                          │
-                 ┌──────────────────────── QUERY (live, per request) ──────────────────────────┐        │
-   user ───────► │ Intent Routing ──► Retriever / MultiRetriever ──► reranker ──► GraphRAG       │◄───────┘
-   question      │   (RAG/SKILL/      (vector search, top-N        (cross-encoder  (callers +     │
-                 │    AGENT)           candidate pool)              re-order)       callees)      │
-                 │                                                      │                          │
-                 │                                                      ▼                          │
-                 │                              LLM generation (Ollama / OpenAI / vLLM / Claude)   │
-                 │                                                      │                          │
-                 │                          confidence < threshold? ──► escalate to Claude         │
-                 └──────────────────────────────────────────────────────────────────────────────┘
-                                                                       │
-                                                                       ▼
-                                              answer + source citations + confidence (JSON / SSE)
-```
+A component-level reference for the pipeline shown in [How it works](#how-it-works) above.
 
 ### The engine — `intelligence_core`
 
