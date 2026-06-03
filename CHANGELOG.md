@@ -10,6 +10,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.3] — 2026-06-03
+
+### Added
+- **Cross-encoder reranking** (`intelligence_core/reranker.py`): riordina i
+  candidati con un cross-encoder prima del taglio a `top_k`. Leva principale per
+  `context_precision`. Opt-in, non-breaking:
+  - `RERANK_ENABLED` (default `false`) — attiva il reranking
+  - `RERANK_MODEL` (default `cross-encoder/ms-marco-MiniLM-L-6-v2`)
+  - `RERANK_CANDIDATES` (default 20) — ampiezza del pool prima del rerank
+  - Richiede l'extra `[st]`; se il modello non è disponibile si ricade in modo
+    controllato sul keyword-boost legacy.
+
+### Changed
+- `Retriever.search`: con reranking attivo allarga il pool di candidati
+  (`max(top_k*2, RERANK_CANDIDATES)`); altrimenti comportamento invariato. Il
+  keyword-boost legacy è estratto in `_keyword_rerank` (fallback).
+- `pyproject.toml` versione `0.7.2` → `0.7.3`.
+
+---
+
 ## [0.7.2] — 2026-06-03
 
 ### Added

@@ -637,6 +637,12 @@ OLLAMA_EMBED_MODEL=nomic-embed-text
 VECTOR_STORE=chromadb
 # CHROMA_PERSIST_DIR=/custom/path/chroma
 
+# Reranking — cross-encoder re-ordering before top_k (boosts context precision)
+# Opt-in, requires the [st] extra. Downloads RERANK_MODEL once on first use.
+# RERANK_ENABLED=true
+# RERANK_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+# RERANK_CANDIDATES=20
+
 # Escalation: fallback to Claude when confidence < threshold
 ESCALATION_THRESHOLD=0.70
 

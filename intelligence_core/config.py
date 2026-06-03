@@ -59,6 +59,16 @@ class Settings(BaseSettings):
         """Expand ~ and resolve to an absolute path so CWD never matters."""
         return str(Path(v).expanduser().resolve())
 
+    # ── Reranking (cross-encoder) ──────────────────────────────────────────────
+    # Re-order the candidate chunks with a cross-encoder before cutting to top_k.
+    # Big lift for context_precision; needs the [st] extra (sentence-transformers).
+    #   RERANK_ENABLED=false → keep the legacy keyword-boost behavior (default)
+    #   RERANK_ENABLED=true  → cross-encoder rerank (downloads RERANK_MODEL once)
+    # RERANK_CANDIDATES — how many chunks to fetch before reranking down to top_k.
+    rerank_enabled:    bool = False
+    rerank_model:      str  = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    rerank_candidates: int  = 20
+
     # ── Per-module LLM overrides ───────────────────────────────────────────────
     # Leave empty to use the global LLM_BACKEND / OLLAMA_MODEL / OPENAI_* settings.
     # Set any combination to route a specific module to a different backend or model.

@@ -27,22 +27,27 @@ class Retriever:
         top_k: int = 5,
         domain: str = None,
     ) -> list[RetrievalResult]:
-        """Retrieval semantico + reranking per keyword boost."""
+        """Retrieval semantico → rerank (cross-encoder o keyword) → top_k."""
+        from intelligence_core.config import settings
+        from intelligence_core.reranker import get_reranker
+
         embedding = self.embedder.embed_one(query)
         filters = {"domain": domain} if domain else None
-        raw = self.store.search(embedding, top_k=top_k * 2, filters=filters)
 
-        # Keyword boost: +0.1 per ogni termine trovato, cap a +0.3
-        query_terms = [t.lower() for t in query.split() if len(t) > 2]
-        for chunk in raw:
-            text_lower = chunk["text"].lower()
-            boost = min(sum(0.1 for t in query_terms if t in text_lower), 0.3)
-            chunk["score"] = chunk.get("score", 0.0) + boost
+        reranker = get_reranker()
+        # Col cross-encoder allarghiamo il pool di candidati: più materiale da
+        # riordinare = più chance che i chunk rilevanti finiscano nel top_k.
+        fetch_k = max(top_k * 2, settings.rerank_candidates) if reranker else top_k * 2
+        raw = self.store.search(embedding, top_k=fetch_k, filters=filters)
 
-        raw.sort(key=lambda c: c["score"], reverse=True)
+        if reranker:
+            top_chunks = reranker.rerank(query, raw, top_k=top_k)
+        else:
+            top_chunks = self._keyword_rerank(query, raw, top_k=top_k)
+
         results = [
             RetrievalResult(chunk=c, score=c["score"], rank=i + 1)
-            for i, c in enumerate(raw[:top_k])
+            for i, c in enumerate(top_chunks)
         ]
 
         # GraphRAG — espansione opzionale via grafo, non breaking.
@@ -50,6 +55,17 @@ class Retriever:
             results = self._expand_with_graph(results, domain)
 
         return results
+
+    @staticmethod
+    def _keyword_rerank(query: str, raw: list[dict], top_k: int) -> list[dict]:
+        """Fallback legacy: boost +0.1 per termine trovato, cap a +0.3."""
+        query_terms = [t.lower() for t in query.split() if len(t) > 2]
+        for chunk in raw:
+            text_lower = chunk["text"].lower()
+            boost = min(sum(0.1 for t in query_terms if t in text_lower), 0.3)
+            chunk["score"] = chunk.get("score", 0.0) + boost
+        raw.sort(key=lambda c: c["score"], reverse=True)
+        return raw[:top_k]
 
     def _expand_with_graph(self, results, domain):
         try:
