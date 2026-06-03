@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-VALID_DOMAINS    = {"code", "doc", "api", "data", "mentor"}
+VALID_DOMAINS    = {"code", "doc", "api", "data", "mentor", "qa"}
 VALID_CODE_TYPES = {"function", "class", "interface", "config_block", "module", "file"}
 VALID_DOC_TYPES  = {"section", "table", "procedure", "definition", "code_example", "file"}
 VALID_API_TYPES  = {"endpoint", "schema", "example", "parameter"}
@@ -17,6 +17,8 @@ VALID_MENTOR_TYPES = {
     "faq",
     "glossary",
 }
+# qa: coppie Domanda/Risposta in stile (ProposalIntelligence — questionari / gare)
+VALID_QA_TYPES = {"qa_pair"}
 
 
 def make_chunk_id(domain: str, type_: str, locator: str) -> str:

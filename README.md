@@ -189,6 +189,7 @@ REST API you can query from any client.
 | `MentorIntelligence` | Onboarding | Adaptive onboarding — profile detection, sessions, cross-domain path |
 | `SkillIntelligence` | Procedures | Step-by-step procedural guidance with cross-domain RAG (code + doc + mentor) |
 | `AgentIntelligence` | Multi-hop agent | ReAct agent with tool calling (search_code/docs/practices, analyze_impact) |
+| `ProposalIntelligence` | Questionnaires / RFPs | Auto-answers questionnaires in your house style, grounded in a corpus of past Q&A |
 
 ---
 
@@ -493,6 +494,63 @@ classified as a complex multi-domain analysis.
 
 ---
 
+## ProposalIntelligence — auto-answer questionnaires in your house style
+
+Answering RFPs, tenders and vendor questionnaires is repetitive: the same kinds of questions come
+back, and the answers must follow a specific corporate tone (a flat *"no"* is never the answer).
+ProposalIntelligence loads a corpus of **past Q&A pairs** — which capture both *what* you answer and
+*how* — then, given a new questionnaire, generates answers that **imitate that style** and stay
+**grounded in the retrieved examples**.
+
+```
+Q&A corpus (table / CSV / XLSX / D:·R: markers)
+        ↓  pi-ingest          → 1 chunk = 1 Q&A pair
+        ↓  pi-embed           → embed the QUESTION → ChromaDB "proposal_intelligence"
+new questionnaire (questions only)
+        ↓  pi-answer          → retrieve similar past Q&A → few-shot style prompt → LLM
+        ↓
+risposte.md  (one styled answer per question + the style sources used)
+```
+
+**Two answer modes** (`--mode`):
+
+| Mode | Behaviour |
+|---|---|
+| `anchored` | Uses **only** facts present in the retrieved examples. If they don't cover the question, it says so explicitly instead of inventing. |
+| `commercial` | May elaborate persuasively in the house tone, but specific factual claims (clients, projects, numbers, certifications) stay consistent with the examples — never fabricated. |
+
+In both modes a guardrail forbids inventing named clients, projects, figures or certifications.
+
+### CLI quickstart
+
+```bash
+# 1. Load a corpus of past answers (synthetic demo included)
+pi-ingest examples/proposal/qa_corpus.md         # → qa_chunks.jsonl
+pi-embed                                          # → ChromaDB "proposal_intelligence"
+
+# 2. Answer a new questionnaire in the company style
+pi-answer examples/proposal/questionnaire.md --mode commercial -o risposte.md
+
+# 3. Or serve it
+pi-serve                                          # http://localhost:8085
+curl -X POST http://localhost:8085/api/v1/proposal/answer \
+  -H "Content-Type: application/json" \
+  -d '{"questions": ["Do you have cloud migration experience?"], "mode": "anchored"}'
+```
+
+> **Multilingual matching.** Since questionnaires are often in Italian, give this module its own
+> embedder via the per-module override — no need to re-index the code/doc collections:
+> ```env
+> PI_EMBED_BACKEND=st
+> PI_EMBED_MODEL=paraphrase-multilingual-MiniLM-L12-v2
+> ```
+
+> **Privacy.** Real corpora and questionnaires can contain confidential bid data, so `qa_corpus/`,
+> `questionari/`, `qa_chunks.jsonl` and `risposte.md` are git-ignored. Only the **synthetic** demo
+> under `examples/proposal/` is versioned.
+
+---
+
 ## Intent Routing
 
 Every `/api/v1/query` request is transparently classified before being answered. The user writes
@@ -739,6 +797,10 @@ All variables are accepted as plain environment variables too — no `.env` file
 | `si-ingest <dir>` | SkillIntelligence | Load / list Markdown skills from a directory |
 | `si-serve` | SkillIntelligence | Start the skill guidance server on `SI_PORT` (default 8083) |
 | `ai-serve` | AgentIntelligence | Start the ReAct agent server on `AGENT_PORT` (default 8084) |
+| `pi-ingest <corpus>` | ProposalIntelligence | Ingest a Q&A corpus (table/CSV/XLSX or `D:`/`R:` markers) → `qa_chunks.jsonl` |
+| `pi-embed [file]` | ProposalIntelligence | Embed Q&A pairs (on the question) into ChromaDB `proposal_intelligence` |
+| `pi-answer <questions>` | ProposalIntelligence | Auto-answer a questionnaire in house style → Markdown (`--mode anchored\|commercial`) |
+| `pi-serve` | ProposalIntelligence | Start the proposal server on `PI_PORT` (default 8085) |
 | `ci-eval` | intelligence_core | Run the RAGAS evaluation pipeline — `--domain code\|doc\|mentor\|all` (requires `[eval]`) |
 | `ci-graph` | intelligence_core | Build the dependency graph + stats (requires `[graph]`) |
 | `is-launch` | Launcher | Dashboard to start/stop/monitor all modules — port 8079 |

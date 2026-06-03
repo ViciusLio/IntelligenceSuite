@@ -112,13 +112,46 @@ class ClaudeEmbedder:
         return resp.json()["data"][0]["embedding"]
 
 
-def get_embedder(backend: str = None) -> Embedder:
-    """Factory: crea l'embedder appropriato in base a settings.embed_backend."""
+def get_embedder(backend: str = None, *, model: str = None) -> Embedder:
+    """Factory: crea l'embedder appropriato in base a settings.embed_backend.
+
+    Args:
+        backend: Override ``EMBED_BACKEND`` (``"ollama"`` | ``"st"`` | ``"claude"``).
+        model:   Override del nome modello (``ST_MODEL`` / ``OLLAMA_EMBED_MODEL``).
+                 Ignorato dal backend ``claude`` (modello fisso voyage).
+    """
     from intelligence_core.config import settings
     backend = backend or settings.embed_backend
 
     if backend in ("st", "sentence_transformer"):
-        return SentenceTransformerEmbedder()   # model read from settings.st_model
+        return SentenceTransformerEmbedder(model_name=model)   # None → settings.st_model
     if backend == "claude":
         return ClaudeEmbedder()
-    return OllamaEmbedder()
+    return OllamaEmbedder(model=model)   # None → settings.ollama_embed_model
+
+
+def get_module_embedder(module: str) -> Embedder:
+    """Embedder per uno specifico modulo, applicando gli override per-modulo.
+
+    Prefissi modulo
+    ---------------
+    "pi" → ProposalIntelligence (PI_EMBED_BACKEND, PI_EMBED_MODEL)
+
+    Qualsiasi variabile lasciata vuota ricade sui valori globali
+    ``EMBED_BACKEND`` / ``ST_MODEL``. Permette, per esempio, di usare un
+    embedder multilingue solo per il modulo Q&A senza re-indicizzare le altre
+    collezioni (che restano sull'embedder globale).
+    """
+    from intelligence_core.config import settings
+
+    prefix  = module.lower()
+    backend = getattr(settings, f"{prefix}_embed_backend", "") or None
+    model   = getattr(settings, f"{prefix}_embed_model",   "") or None
+
+    if backend or model:
+        logger.info(
+            "Module [%s] embedder override → backend=%s  model=%s",
+            module.upper(), backend or "(global)", model or "(global)",
+        )
+
+    return get_embedder(backend, model=model)

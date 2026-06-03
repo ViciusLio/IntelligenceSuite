@@ -45,6 +45,14 @@ mentor_chunks.jsonl
 # contenuto riservato (codice/doc aziendali). MAI nel repo.
 tests/eval/*.jsonl
 
+# ProposalIntelligence — corpus Q&A e questionari REALI possono contenere
+# risposte di gara / dati clienti riservati. MAI nel repo.
+# (gli esempi SINTETICI sotto examples/proposal/ sono espliciti e versionati)
+qa_chunks.jsonl
+qa_corpus/
+questionari/
+risposte*.md
+
 # Test artifacts
 .pytest_cache/
 .mypy_cache/

@@ -88,6 +88,24 @@ class Settings(BaseSettings):
     mi_llm_model:    str = ""   # e.g. "claude-sonnet-4-5"
     mi_llm_base_url: str = ""
     mi_llm_api_key:  str = ""
+    # ProposalIntelligence (PI_LLM_*)
+    pi_llm_backend:  str = ""   # e.g. "claude"
+    pi_llm_model:    str = ""
+    pi_llm_base_url: str = ""
+    pi_llm_api_key:  str = ""
+
+    # ── ProposalIntelligence — questionari / gare (auto-risposta in stile) ─────
+    # Embedder dedicato: il match domanda-su-domanda in IT/EN rende molto con un
+    # modello multilingue, senza dover re-indicizzare le altre collezioni
+    # (lasciale sull'embedder globale).
+    #   PI_EMBED_BACKEND=st
+    #   PI_EMBED_MODEL=paraphrase-multilingual-MiniLM-L12-v2
+    pi_embed_backend: str = ""
+    pi_embed_model:   str = ""
+    # Modalità di risposta predefinita: "anchored" (solo fatti negli esempi) o
+    # "commercial" (elaborazione persuasiva, claim fattuali comunque ancorati).
+    proposal_mode:    str = "anchored"
+    proposal_top_k:   int = 4   # quanti esempi Q&A passati usare come few-shot
 
     # ── Intent Routing ────────────────────────────────────────────────────────
     # Set INTENT_ROUTING=false to disable routing and keep current RAG behavior
@@ -112,6 +130,7 @@ class Settings(BaseSettings):
     mi_port:       int = 8082   # MentorIntelligence
     si_port:       int = 8083   # SkillIntelligence
     agent_port:    int = 8084   # AgentIntelligence
+    pi_port:       int = 8085   # ProposalIntelligence
     launcher_port: int = 8079   # Launcher dashboard
 
     # ── Shared server settings ─────────────────────────────────────────────────

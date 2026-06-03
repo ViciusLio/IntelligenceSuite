@@ -10,6 +10,37 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.8.0] — 2026-06-03
+
+### Added
+- **Nuovo modulo `ProposalIntelligence`** — auto-risposta a questionari/gare nel
+  proprio *stile aziendale*, ancorata a un corpus di Q&A passate. Pipeline:
+  - `pi-ingest` — parsing di corpus strutturati (tabella Markdown/CSV/Excel a 2
+    colonne, marcatori `D:`/`R:` · `Q:`/`A:` · `Domanda:`/`Risposta:`) in chunk
+    `qa::qa_pair::<hash>` deterministici e idempotenti.
+  - `pi-embed` — indicizza in ChromaDB embeddando **la domanda** (non l'intera
+    coppia), così una nuova domanda — anche se formulata diversamente — matcha
+    le domande passate simili; il chunk recuperato resta la coppia completa per
+    il few-shot.
+  - `pi-answer` — recupera le coppie più simili come esempi di stile e genera le
+    risposte. Due **modalità** selezionabili: `anchored` (fedele al corpus,
+    temperatura bassa) e `commercial` (più assertiva/promozionale).
+  - `pi-serve` — API REST (`/health`, `POST /api/v1/proposal/answer`) sulla
+    porta `8085`.
+  - Output in Markdown con fonti di stile e relativi punteggi.
+- **Override embedder per-modulo** (`get_module_embedder`): ogni modulo può usare
+  un embedder dedicato via `{PREFIX}_EMBED_BACKEND` / `{PREFIX}_EMBED_MODEL`
+  (es. `PI_EMBED_*` per un modello multilingue IT/EN) senza re-indicizzare le
+  collezioni esistenti.
+- Dominio `qa` e tipo `qa_pair` aggiunti allo schema chunk condiviso.
+- Dati demo **sintetici** in `examples/proposal/` (corpus + questionario).
+
+### Changed
+- README: nuova sezione architetturale "How it works" con diagrammi Mermaid in
+  testa, e sezione dedicata a ProposalIntelligence.
+
+---
+
 ## [0.7.5] — 2026-06-03
 
 ### Added
