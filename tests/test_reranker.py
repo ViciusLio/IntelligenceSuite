@@ -112,9 +112,9 @@ def test_search_uses_reranker_and_widens_candidate_pool(monkeypatch):
 
     results = r.search("term0", top_k=5, domain=None)
 
-    assert store.last_top_k == 20  # max(top_k*2=10, rerank_candidates=20)
+    assert store.last_top_k == 30  # max(top_k*2=10, rerank_candidates=30)
     assert len(results) == 5
-    assert results[0].chunk["id"] == "19"  # reranker ha invertito i 20 candidati
+    assert results[0].chunk["id"] == "29"  # reranker ha invertito i 30 candidati
     assert results[0].rank == 1
 
 
@@ -149,8 +149,8 @@ def test_multiretriever_pools_all_collections_and_reranks(monkeypatch):
 
     results = mr.search("term0", top_k=4)
 
-    # Ogni store interrogato col pool allargato (max(top_k*2=8, candidates=20)=20)
-    assert code.last_top_k == doc.last_top_k == mentor.last_top_k == 20
+    # Ogni store interrogato col pool allargato (max(top_k*2=8, candidates=30)=30)
+    assert code.last_top_k == doc.last_top_k == mentor.last_top_k == 30
     assert len(results) == 4
     # Il pool fuso contiene chunk di domini diversi: la classifica è globale.
     prefixes = {res.chunk["id"].split("-")[0] for res in results}

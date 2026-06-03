@@ -37,8 +37,23 @@ def generate_testset(
     cache_path = Path(f"tests/eval/{domain}_testset.jsonl")
 
     if cache_path.exists() and not force_regenerate:
-        print(f"Carico testset dalla cache: {cache_path}")
-        return _load_from_cache(cache_path)
+        rows = _load_from_cache(cache_path)
+        # --samples deve poter ridurre senza rigenerare (zero chiamate LLM).
+        # Per averne di più della cache serve --regenerate.
+        if test_size and len(rows) > test_size:
+            print(
+                f"Carico testset dalla cache: {cache_path} "
+                f"({len(rows)} domande → uso le prime {test_size})"
+            )
+            return rows[:test_size]
+        if test_size and len(rows) < test_size:
+            print(
+                f"Carico testset dalla cache: {cache_path} ({len(rows)} domande). "
+                f"Richieste {test_size}: usa --regenerate per generarne di più."
+            )
+        else:
+            print(f"Carico testset dalla cache: {cache_path} ({len(rows)} domande)")
+        return rows
 
     if domain == "all":
         paths = get_all_chunk_paths()

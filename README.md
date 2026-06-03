@@ -641,7 +641,7 @@ VECTOR_STORE=chromadb
 # Opt-in, requires the [st] extra. Downloads RERANK_MODEL once on first use.
 # RERANK_ENABLED=true
 # RERANK_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
-# RERANK_CANDIDATES=20
+# RERANK_CANDIDATES=30
 
 # Escalation: fallback to Claude when confidence < threshold
 ESCALATION_THRESHOLD=0.70

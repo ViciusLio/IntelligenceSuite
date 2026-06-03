@@ -47,7 +47,7 @@ def main():
     from intelligence_core.evaluation.runner import run_testset
 
     print(f"\nRAGAS Evaluation — dominio: {args.domain}")
-    print(f"Campioni: {args.samples}, top-k: {args.top_k}\n")
+    print(f"Campioni richiesti: {args.samples}, top-k: {args.top_k}\n")
 
     testset = generate_testset(
         domain=args.domain,
@@ -55,6 +55,8 @@ def main():
         force_regenerate=args.regenerate,
         max_docs=args.max_docs,
     )
+    # Il conteggio reale può differire da --samples (cache più piccola, troncamento).
+    print(f"Domande effettive in valutazione: {len(testset)}\n")
 
     results = run_testset(testset=testset, domain=args.domain, top_k=args.top_k)
 

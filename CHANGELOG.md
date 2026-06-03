@@ -10,6 +10,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.5] — 2026-06-03
+
+### Added
+- `ci-eval --samples N` ora **tronca il testset cachato** a N domande senza
+  rigenerare (zero chiamate LLM). Per averne più di quante ce ne sono in cache
+  serve `--regenerate`. Utile per A/B rapidi (es. confronto reranker ON/OFF).
+
+### Changed
+- `RERANK_CANDIDATES` default `20` → `30`: il cross-encoder riceve più candidati
+  da riordinare. Misurato su un A/B (stesso testset): il reranking porta
+  `context_precision` +0.14 e `context_recall` +0.15.
+- `ci-eval` ora stampa **il numero reale** di domande in valutazione
+  (`Domande effettive in valutazione: N`), oltre ai campioni richiesti — prima
+  mostrava sempre il default di `--samples` anche quando la cache era più piccola.
+
+---
+
 ## [0.7.4] — 2026-06-03
 
 ### Added

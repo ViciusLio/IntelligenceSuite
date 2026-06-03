@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     # RERANK_CANDIDATES — how many chunks to fetch before reranking down to top_k.
     rerank_enabled:    bool = False
     rerank_model:      str  = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    rerank_candidates: int  = 20
+    rerank_candidates: int  = 30
 
     # ── Per-module LLM overrides ───────────────────────────────────────────────
     # Leave empty to use the global LLM_BACKEND / OLLAMA_MODEL / OPENAI_* settings.
