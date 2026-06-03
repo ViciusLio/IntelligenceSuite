@@ -90,8 +90,9 @@ class OpenAICompatProvider:
         extra: dict = {}
         try:
             from intelligence_core.config import settings
-            if settings.thinking_mode and self.backend_name == "vllm":
-                extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}}
+            tm = settings.thinking_mode
+            if tm is not None and self.backend_name == "vllm":
+                extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": tm}}
         except Exception:
             pass
         try:
@@ -119,7 +120,7 @@ class OpenAICompatProvider:
         messages: list[dict],
         tools: list[dict],
         *,
-        thinking: bool = False,
+        thinking: bool | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.1,
     ):
@@ -131,8 +132,9 @@ class OpenAICompatProvider:
         Args:
             messages:    Full conversation history in OpenAI format.
             tools:       List of tool definitions (OpenAI tool schema).
-            thinking:    If True and backend is vLLM, enable Qwen3 thinking mode
-                         via ``extra_body``.
+            thinking:    Tri-state for Qwen3 thinking mode on the vLLM backend:
+                         ``True`` forces it on, ``False`` forces it off,
+                         ``None`` leaves the model default (nothing sent).
             max_tokens:  Max tokens for the response (default higher than generate()
                          to leave room for chain-of-thought).
             temperature: Sampling temperature.
@@ -146,8 +148,8 @@ class OpenAICompatProvider:
             ) from exc
 
         extra: dict = {}
-        if thinking and self.backend_name == "vllm":
-            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": True}}
+        if thinking is not None and self.backend_name == "vllm":
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": thinking}}
 
         try:
             client = OpenAI(base_url=self.base_url, api_key=self.api_key)
@@ -189,6 +191,14 @@ class OpenAICompatProvider:
 
         system  = system_prompt or SYSTEM_PROMPT_DEFAULT
         user_msg = f"Context:\n{context}\n\nQuestion: {question}"
+        extra: dict = {}
+        try:
+            from intelligence_core.config import settings
+            tm = settings.thinking_mode
+            if tm is not None and self.backend_name == "vllm":
+                extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": tm}}
+        except Exception:
+            pass
         try:
             client = OpenAI(base_url=self.base_url, api_key=self.api_key)
             with client.chat.completions.create(
@@ -200,6 +210,7 @@ class OpenAICompatProvider:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 stream=True,
+                **extra,
             ) as stream:
                 for chunk in stream:
                     token = chunk.choices[0].delta.content or ""

@@ -480,7 +480,7 @@ class TestOpenAICompatTools:
 
         mock_client = self._mock_openai_client()
         with patch("openai.OpenAI", return_value=mock_client):
-            provider.generate_with_tools(messages, tools, thinking=False)
+            provider.generate_with_tools(messages, tools, thinking=None)
 
         mock_client.chat.completions.create.assert_called_once()
         kwargs = mock_client.chat.completions.create.call_args[1]
@@ -496,6 +496,15 @@ class TestOpenAICompatTools:
         kwargs = mock_client.chat.completions.create.call_args[1]
         assert "extra_body" in kwargs
         assert kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
+
+    def test_generate_with_tools_thinking_false_disables_for_vllm(self):
+        """thinking=False forces enable_thinking=False on vLLM (disable Qwen3 default)."""
+        provider = self._make_provider(backend_hint="vllm")
+        mock_client = self._mock_openai_client()
+        with patch("openai.OpenAI", return_value=mock_client):
+            provider.generate_with_tools([], [], thinking=False)
+        kwargs = mock_client.chat.completions.create.call_args[1]
+        assert kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
 
     def test_generate_with_tools_no_extra_body_for_openai_backend(self):
         """thinking=True is ignored for non-vLLM backends."""

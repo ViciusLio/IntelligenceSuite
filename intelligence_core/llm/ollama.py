@@ -19,6 +19,21 @@ def _ollama_timeout() -> float:
         return 300.0
 
 
+def _thinking_flag() -> bool | None:
+    """Read THINKING_MODE from settings (tri-state). Lazy import to avoid cycles.
+
+    Returns ``True``/``False`` to force thinking on/off (sent as Ollama's native
+    ``think`` field), or ``None`` to leave the model default untouched.
+    Only thinking-capable models (qwen3, deepseek-r1, …) accept the ``think``
+    field — set THINKING_MODE only when running such a model.
+    """
+    try:
+        from intelligence_core.config import settings
+        return settings.thinking_mode
+    except Exception:
+        return None
+
+
 class OllamaProvider:
     """
     Calls Ollama /api/chat endpoint.
@@ -56,21 +71,25 @@ class OllamaProvider:
         system = system_prompt or SYSTEM_PROMPT_DEFAULT
         user_msg = f"Context:\n{context}\n\nQuestion: {question}"
         timeout = _ollama_timeout()
+        payload: dict = {
+            "model": self.model,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user",   "content": user_msg},
+            ],
+        }
+        think = _thinking_flag()
+        if think is not None:
+            payload["think"] = think
         try:
             resp = httpx.post(
                 f"{self.base_url}/api/chat",
-                json={
-                    "model": self.model,
-                    "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
-                    },
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user",   "content": user_msg},
-                    ],
-                },
+                json=payload,
                 timeout=timeout,
             )
             resp.raise_for_status()
@@ -96,19 +115,23 @@ class OllamaProvider:
         system  = system_prompt or SYSTEM_PROMPT_DEFAULT
         user_msg = f"Context:\n{context}\n\nQuestion: {question}"
         timeout = _ollama_timeout()
+        payload: dict = {
+            "model":   self.model,
+            "stream":  True,
+            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user",   "content": user_msg},
+            ],
+        }
+        think = _thinking_flag()
+        if think is not None:
+            payload["think"] = think
         try:
             with httpx.stream(
                 "POST",
                 f"{self.base_url}/api/chat",
-                json={
-                    "model":   self.model,
-                    "stream":  True,
-                    "options": {"temperature": temperature, "num_predict": max_tokens},
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user",   "content": user_msg},
-                    ],
-                },
+                json=payload,
                 timeout=timeout,
             ) as r:
                 r.raise_for_status()

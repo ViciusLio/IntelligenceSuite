@@ -87,9 +87,13 @@ class Settings(BaseSettings):
     intent_agent_enabled:        bool  = False
 
     # ── Agent / Thinking mode (v0.5) ──────────────────────────────────────────
-    # THINKING_MODE=true  — enable Qwen3 chain-of-thought (extra_body, vLLM only)
+    # Controls chain-of-thought ("thinking") for thinking-capable models
+    # (Qwen3, DeepSeek-R1, …) on the Ollama and vLLM backends.
+    #   THINKING_MODE unset  → use the model's own default (nothing is sent)
+    #   THINKING_MODE=true   → force thinking ON
+    #   THINKING_MODE=false  → force thinking OFF (disables Qwen3 default thinking)
     # AGENT_MAX_ITERATIONS — max ReAct iterations before forcing a final answer
-    thinking_mode:        bool = False
+    thinking_mode:        bool | None = None
     agent_max_iterations: int  = 5
 
     # ── Server ports (one per module, avoids conflicts when running together) ──
