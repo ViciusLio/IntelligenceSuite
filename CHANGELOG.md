@@ -10,6 +10,33 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.9.0] — 2026-06-04
+
+### Added
+- **Multi-project namespacing** (`IS_PROJECT` env var): set `IS_PROJECT=acme` to
+  isolate all ChromaDB collections (`acme_code_intelligence`, …) and state
+  directories (`~/.intelligence_suite/acme/chroma|graph|eval|skill_sessions/`)
+  per project.  Default value `"default"` replicates the exact v0.8.x layout
+  with zero breaking changes.
+- New module `intelligence_core/paths.py` — single source of truth for
+  collection names and state-directory paths, project-aware at call time.
+
+### Changed
+- `intelligence_core/graph/store.py`: `GRAPH_DIR` is now a patchable sentinel
+  (`None`) resolved at call time via `paths.graph_dir()`.
+- `intelligence_core/evaluation/report.py`: same pattern for `EVAL_DIR`.
+- `intelligence_core/evaluation/paths.py`: `get_collection()` and
+  `get_all_collections()` delegate to `paths.collection_name()` — collection
+  names are now project-prefixed when IS_PROJECT is set.
+- `intelligence_core/retriever.py`: `Retriever.load_default()` and
+  `MultiRetriever.load_default()` pass `persist_dir` from `paths.chroma_dir()`.
+- All server and embed entry-points use `paths.collection_name()` at build time;
+  `SkillIntelligence` and `AgentIntelligence` resolve collection names at call time.
+- Launcher header shows project name when `IS_PROJECT != "default"`.
+- `.env.example`: documents the new `IS_PROJECT` variable.
+
+---
+
 ## [0.8.1] — 2026-06-03
 
 ### Added

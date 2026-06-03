@@ -109,7 +109,11 @@ class Retriever:
         """
         from intelligence_core.embedder import get_embedder
         from intelligence_core.store import ChromaStore
-        return cls(embedder=get_embedder(), store=ChromaStore(collection_name=collection_name))
+        from intelligence_core import paths
+        return cls(
+            embedder=get_embedder(),
+            store=ChromaStore(collection_name=collection_name, persist_dir=str(paths.chroma_dir())),
+        )
 
 
 class MultiRetriever:
@@ -156,7 +160,9 @@ class MultiRetriever:
     def load_default(cls, collection_names: list[str]) -> "MultiRetriever":
         from intelligence_core.embedder import get_embedder
         from intelligence_core.store import ChromaStore
+        from intelligence_core import paths
 
         embedder = get_embedder()
-        stores = [ChromaStore(collection_name=name) for name in collection_names]
+        persist_dir = str(paths.chroma_dir())
+        stores = [ChromaStore(collection_name=name, persist_dir=persist_dir) for name in collection_names]
         return cls(embedder=embedder, stores=stores)

@@ -22,15 +22,22 @@ from SkillIntelligence.registry import get_registry
 
 logger = logging.getLogger(__name__)
 
-# Session storage dir: ~/.intelligence_suite/skill_sessions/
-_SESSIONS_DIR = Path("~/.intelligence_suite/skill_sessions").expanduser()
+# Session storage dir — sentinel; tests can override via monkeypatch.setattr or sessions_dir arg
+_SESSIONS_DIR: Path | None = None
 
-# Collection names per domain
+# Valid domains; collection names resolved at runtime via paths.collection_name()
 _DOMAIN_COLLECTIONS: dict[str, str] = {
     "code":   "code_intelligence",
     "doc":    "doc_intelligence",
     "mentor": "mentor_intelligence",
 }
+
+
+def _sessions_dir_default() -> Path:
+    if _SESSIONS_DIR is not None:
+        return _SESSIONS_DIR
+    from intelligence_core import paths
+    return paths.skill_sessions_dir()
 
 # Max tokens (chars) of retrieved context passed to the LLM
 _MAX_CONTEXT_CHARS = 12000  # approx 3000 tokens at ~4 chars/token
@@ -55,7 +62,7 @@ class SkillExecutor:
                       Injected by tests to avoid the global registry/disk side-effects.
         """
         self._llm = llm
-        self._sessions_dir = sessions_dir or _SESSIONS_DIR
+        self._sessions_dir = sessions_dir or _sessions_dir_default()
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
         # DECISION: retriever_factory and registry are injectable so tests can mock
         # without needing a live ChromaDB instance or the global registry singleton.
@@ -186,8 +193,9 @@ class SkillExecutor:
         all_results: list[RetrievalResult] = []
         seen_sources: set[str] = set()
 
+        from intelligence_core import paths as _paths
         for domain in effective_domains:
-            collection = _DOMAIN_COLLECTIONS[domain]
+            collection = _paths.collection_name(domain)
             try:
                 retriever = self._retriever_factory(collection)
                 results = retriever.search(query, top_k=top_k)

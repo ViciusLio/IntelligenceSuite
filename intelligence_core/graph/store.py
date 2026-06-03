@@ -8,12 +8,20 @@ from pathlib import Path
 import networkx as nx
 from networkx.readwrite import json_graph
 
-GRAPH_DIR = Path.home() / ".intelligence_suite" / "graph"
+GRAPH_DIR: Path | None = None  # sentinel; override in tests via monkeypatch.setattr
+
+
+def _dir() -> Path:
+    if GRAPH_DIR is not None:
+        return GRAPH_DIR
+    from intelligence_core import paths
+    return paths.graph_dir()
 
 
 def save_graph(graph: nx.DiGraph, domain: str = "code") -> Path:
-    GRAPH_DIR.mkdir(parents=True, exist_ok=True)
-    path = GRAPH_DIR / f"{domain}_graph.json"
+    d = _dir()
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"{domain}_graph.json"
     data = json_graph.node_link_data(graph, edges="links")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
@@ -23,7 +31,7 @@ def save_graph(graph: nx.DiGraph, domain: str = "code") -> Path:
 
 
 def load_graph(domain: str = "code") -> nx.DiGraph:
-    path = GRAPH_DIR / f"{domain}_graph.json"
+    path = _dir() / f"{domain}_graph.json"
     if not path.exists():
         raise FileNotFoundError(
             f"Grafo non trovato. Esegui: ci-graph --domain {domain}"
@@ -34,4 +42,4 @@ def load_graph(domain: str = "code") -> nx.DiGraph:
 
 
 def graph_exists(domain: str = "code") -> bool:
-    return (GRAPH_DIR / f"{domain}_graph.json").exists()
+    return (_dir() / f"{domain}_graph.json").exists()

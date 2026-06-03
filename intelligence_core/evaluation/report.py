@@ -8,20 +8,28 @@ from pathlib import Path
 from typing import Literal
 
 Domain = Literal["code", "doc", "mentor"]
-EVAL_DIR = Path.home() / ".intelligence_suite" / "eval"
+EVAL_DIR: Path | None = None  # sentinel; override in tests via monkeypatch.setattr or direct assignment
+
+
+def _eval_dir() -> Path:
+    if EVAL_DIR is not None:
+        return EVAL_DIR
+    from intelligence_core import paths
+    return paths.eval_dir()
 
 
 def save_report(evaluation: dict, domain: Domain) -> Path:
-    EVAL_DIR.mkdir(parents=True, exist_ok=True)
+    d = _eval_dir()
+    d.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    path = EVAL_DIR / f"{timestamp}_{domain}.json"
+    path = d / f"{timestamp}_{domain}.json"
 
     payload = {"timestamp": timestamp, "domain": domain, **evaluation}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
     # 'latest' come copia, non symlink: i symlink su Windows richiedono privilegi.
-    latest = EVAL_DIR / f"latest_{domain}.json"
+    latest = d / f"latest_{domain}.json"
     with open(latest, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
@@ -29,7 +37,7 @@ def save_report(evaluation: dict, domain: Domain) -> Path:
 
 
 def load_previous_report(domain: Domain) -> dict | None:
-    latest = EVAL_DIR / f"latest_{domain}.json"
+    latest = _eval_dir() / f"latest_{domain}.json"
     if not latest.exists():
         return None
     with open(latest, encoding="utf-8") as f:

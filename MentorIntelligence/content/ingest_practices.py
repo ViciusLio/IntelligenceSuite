@@ -13,13 +13,13 @@ try:
 except ImportError:
     HAS_YAML = False
 
-COLLECTION_NAME = "mentor_intelligence"
+COLLECTION_NAME = "mentor_intelligence"  # base name; runtime uses paths.collection_name("mentor")
 
 
 def ingest_practices(
     practices_dir: Path,
     output: Path = None,
-    collection_name: str = COLLECTION_NAME,
+    collection_name: str = None,
 ) -> list[dict]:
     """
     Full pipeline step:
@@ -33,6 +33,9 @@ def ingest_practices(
         output:           Optional JSONL output path.
         collection_name:  ChromaDB collection (default: ``mentor_intelligence``).
     """
+    from intelligence_core import paths
+    collection_name = collection_name or paths.collection_name("mentor")
+
     chunks: list[dict] = []
     for file in sorted(practices_dir.rglob("*")):
         if not file.is_file():
@@ -81,7 +84,7 @@ def ingest_practices(
 
     # ── Load into ChromaDB ───────────────────────────────────────────────────
     from intelligence_core.store import ChromaStore
-    store = ChromaStore(collection_name=collection_name)
+    store = ChromaStore(collection_name=collection_name, persist_dir=str(paths.chroma_dir()))
     store.add(chunks)
     print(f"ChromaDB '{collection_name}': {store.count()} total chunks indexed")
 
@@ -199,8 +202,8 @@ def main():
                         help="Directory with practice files (default: ./practices)")
     parser.add_argument("-o", "--output", default="mentor_chunks.jsonl",
                         help="JSONL output path (default: mentor_chunks.jsonl)")
-    parser.add_argument("--collection", default=COLLECTION_NAME,
-                        help=f"ChromaDB collection name (default: {COLLECTION_NAME})")
+    parser.add_argument("--collection", default=None,
+                        help="ChromaDB collection name (default: mentor_intelligence, prefixed when IS_PROJECT is set)")
     args = parser.parse_args()
     ingest_practices(
         Path(args.practices),

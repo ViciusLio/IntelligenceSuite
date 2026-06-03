@@ -12,7 +12,9 @@ from intelligence_core.llm import get_module_llm_provider
 
 
 def build_app():
-    store = ChromaStore(collection_name="doc_intelligence")
+    from intelligence_core import paths
+    store = ChromaStore(collection_name=paths.collection_name("doc"),
+                        persist_dir=str(paths.chroma_dir()))
     retriever = Retriever(embedder=get_embedder(), store=store)
     return create_app(
         title="DocIntelligence RAG Server",

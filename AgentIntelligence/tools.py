@@ -127,12 +127,12 @@ TOOLS: list[dict] = [
     },
 ]
 
-# ── Collection mapping ────────────────────────────────────────────────────────
+# ── Tool → domain mapping (collection resolved at runtime via paths.collection_name) ──
 
-_COLLECTION_MAP: dict[str, str] = {
-    "search_code":      "code_intelligence",
-    "search_docs":      "doc_intelligence",
-    "search_practices": "mentor_intelligence",
+_TOOL_DOMAIN_MAP: dict[str, str] = {
+    "search_code":      "code",
+    "search_docs":      "doc",
+    "search_practices": "mentor",
 }
 
 # ── Lazy retriever cache ──────────────────────────────────────────────────────
@@ -166,10 +166,12 @@ def execute_tool(name: str, args: dict) -> dict:
     if name == "analyze_impact":
         return _execute_analyze_impact(args)
 
-    collection = _COLLECTION_MAP.get(name)
-    if collection is None:
+    domain = _TOOL_DOMAIN_MAP.get(name)
+    if domain is None:
         logger.warning("AgentTools: tool sconosciuto '%s'", name)
         return {"results": [], "error": f"Tool '{name}' non riconosciuto"}
+    from intelligence_core import paths
+    collection = paths.collection_name(domain)
 
     query = str(args.get("query", "")).strip()
     if not query:

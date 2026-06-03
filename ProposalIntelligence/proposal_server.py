@@ -48,7 +48,9 @@ def build_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    store = ChromaStore(collection_name=COLLECTION_NAME)
+    from intelligence_core import paths
+    store = ChromaStore(collection_name=paths.collection_name("qa"),
+                        persist_dir=str(paths.chroma_dir()))
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index():

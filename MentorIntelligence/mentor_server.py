@@ -78,14 +78,20 @@ class FeedbackRequest(BaseModel):
 # ── App factory ──────────────────────────────────────────────────────────────
 
 def build_app() -> FastAPI:
-    embedder = get_embedder()
-    code_retriever   = Retriever(embedder=embedder, store=ChromaStore("code_intelligence"))
-    doc_retriever    = Retriever(embedder=embedder, store=ChromaStore("doc_intelligence"))
-    mentor_retriever = Retriever(embedder=embedder, store=ChromaStore("mentor_intelligence"))
+    from intelligence_core import paths
+    embedder   = get_embedder()
+    persist    = str(paths.chroma_dir())
+    code_retriever   = Retriever(embedder=embedder,
+                                 store=ChromaStore(paths.collection_name("code"),   persist_dir=persist))
+    doc_retriever    = Retriever(embedder=embedder,
+                                 store=ChromaStore(paths.collection_name("doc"),    persist_dir=persist))
+    mentor_retriever = Retriever(embedder=embedder,
+                                 store=ChromaStore(paths.collection_name("mentor"), persist_dir=persist))
 
     orchestrator = MentorOrchestrator(code_retriever, doc_retriever, mentor_retriever)
 
-    base_retriever = Retriever(embedder=embedder, store=ChromaStore("mentor_intelligence"))
+    base_retriever = Retriever(embedder=embedder,
+                               store=ChromaStore(paths.collection_name("mentor"), persist_dir=persist))
     from intelligence_core.llm import get_module_llm_provider
     app = create_app(
         title="MentorIntelligence Server",

@@ -8,7 +8,7 @@ from intelligence_core.chunk import chunk_from_jsonl, chunk_to_jsonl
 from intelligence_core.embedder import get_embedder
 from intelligence_core.config import settings
 
-COLLECTION_NAME = "doc_intelligence"
+COLLECTION_NAME = "doc_intelligence"  # base name; runtime uses paths.collection_name("doc")
 
 
 def _warn_zero_embeddings(chunks: list[dict]) -> None:
@@ -29,7 +29,7 @@ def embed_docs(
     input_file: Path,
     output_file: Path = None,
     incremental: bool = False,
-    collection_name: str = COLLECTION_NAME,
+    collection_name: str = None,
 ) -> list[dict]:
     """Full pipeline step: embed doc chunks and load into ChromaDB.
 
@@ -41,6 +41,8 @@ def embed_docs(
                           source files have been removed.
         collection_name:  ChromaDB collection (default: ``doc_intelligence``).
     """
+    from intelligence_core import paths
+    collection_name = collection_name or paths.collection_name("doc")
     output_file = output_file or input_file
     embedder    = get_embedder()
 
@@ -53,7 +55,7 @@ def embed_docs(
 
     # ── ChromaDB store ───────────────────────────────────────────────────────
     from intelligence_core.store import ChromaStore
-    store = ChromaStore(collection_name=collection_name)
+    store = ChromaStore(collection_name=collection_name, persist_dir=str(paths.chroma_dir()))
 
     if incremental:
         chroma_checksums = store.get_checksums()
@@ -119,8 +121,8 @@ def main():
             "Rimuove da ChromaDB gli ID orfani (file eliminati)."
         ),
     )
-    parser.add_argument("--collection", default=COLLECTION_NAME,
-                        help=f"ChromaDB collection name (default: {COLLECTION_NAME})")
+    parser.add_argument("--collection", default=None,
+                        help="ChromaDB collection name (default: doc_intelligence, prefixed when IS_PROJECT is set)")
     args = parser.parse_args()
     embed_docs(
         Path(args.input),

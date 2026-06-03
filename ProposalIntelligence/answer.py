@@ -33,10 +33,12 @@ def _default_retriever():
     from intelligence_core.embedder import get_module_embedder
     from intelligence_core.retriever import Retriever
     from intelligence_core.store import ChromaStore
+    from intelligence_core import paths
 
     return Retriever(
         embedder=get_module_embedder("pi"),
-        store=ChromaStore(collection_name=COLLECTION_NAME),
+        store=ChromaStore(collection_name=paths.collection_name("qa"),
+                          persist_dir=str(paths.chroma_dir())),
     )
 
 

@@ -42,9 +42,11 @@ def get_all_chunk_paths(base_dir: Path | None = None) -> list[Path]:
 
 
 def get_collection(domain: str) -> str:
-    return COLLECTIONS[domain]
+    from intelligence_core import paths
+    return paths.collection_name(domain)
 
 
 def get_all_collections() -> list[str]:
-    """Nomi di tutte le collection base (eval 'all')."""
-    return [COLLECTIONS[d] for d in BASE_DOMAINS]
+    """Nomi di tutte le collection (con prefisso progetto se IS_PROJECT != 'default')."""
+    from intelligence_core import paths
+    return [paths.collection_name(d) for d in BASE_DOMAINS]

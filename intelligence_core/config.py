@@ -124,6 +124,13 @@ class Settings(BaseSettings):
     thinking_mode:        bool | None = None
     agent_max_iterations: int  = 5
 
+    # ── Multi-project namespacing ─────────────────────────────────────────────
+    # Set IS_PROJECT to isolate collections and state dirs per project.
+    # Default ("default") replicates the exact single-project behavior of v0.8.x.
+    # Example: IS_PROJECT=acme  → collections acme_code_intelligence, …
+    #                             state dirs  ~/.intelligence_suite/acme/…
+    is_project: str = "default"
+
     # ── Server ports (one per module, avoids conflicts when running together) ──
     ci_port:       int = 8080   # CodeIntelligence
     di_port:       int = 8081   # DocIntelligence
