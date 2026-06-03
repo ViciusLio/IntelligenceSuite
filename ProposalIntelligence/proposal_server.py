@@ -10,12 +10,14 @@ from __future__ import annotations
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from intelligence_core.config import settings
 from intelligence_core.store import ChromaStore
 from ProposalIntelligence import COLLECTION_NAME
 from ProposalIntelligence.answer import answer_questions
+from ProposalIntelligence.web import PROPOSAL_HTML
 
 
 class AnswerRequest(BaseModel):
@@ -47,6 +49,10 @@ def build_app() -> FastAPI:
     )
 
     store = ChromaStore(collection_name=COLLECTION_NAME)
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def index():
+        return HTMLResponse(content=PROPOSAL_HTML)
 
     @app.get("/health")
     def health():

@@ -10,6 +10,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.8.1] — 2026-06-03
+
+### Added
+- **Web UI per `pi-serve`** (`GET /`): pagina single-page per incollare un
+  questionario, scegliere la modalità (anchored/commercial) e il numero di
+  esempi di stile, e vedere le risposte generate con le relative fonti.
+- **ProposalIntelligence nel launcher**: nuova card (porta 8085) con polling
+  `/health` e pulsante "Apri →" verso la web UI.
+
+### Changed
+- Launcher: rimossa la card *Agent Intelligence* (era un motore usato dalle chat
+  CI·DI·MI, senza una pagina propria da aprire). Rimosso anche il toggle
+  "thinking mode" associato. Il modulo e `ai-serve` restano invariati.
+
+---
+
 ## [0.8.0] — 2026-06-03
 
 ### Added

@@ -116,37 +116,28 @@ _HTML = """\
       </a>
     </div>
 
-    <!-- Agent Intelligence -->
+    <!-- Proposal Intelligence -->
     <div class="card bg-gray-900 border border-gray-800 rounded-2xl p-7 flex flex-col gap-4">
       <div class="flex items-start justify-between">
-        <span class="text-4xl">🤖</span>
+        <span class="text-4xl">📝</span>
         <div class="flex items-center gap-2">
-          <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-agent"></div>
-          <span class="text-xs text-gray-500" id="label-agent">checking…</span>
+          <div class="w-2 h-2 rounded-full bg-gray-600 dot-pulse" id="dot-proposal"></div>
+          <span class="text-xs text-gray-500" id="label-proposal">checking…</span>
         </div>
       </div>
       <div>
-        <h2 class="font-bold text-base mb-1" style="color:#fb923c">Agent Intelligence</h2>
+        <h2 class="font-bold text-base mb-1" style="color:#a78bfa">Proposal Intelligence</h2>
         <p class="text-xs text-gray-400 leading-relaxed">
-          Multi-hop ReAct agent — ricerca autonoma su code, docs e practices.
+          Auto-answer questionnaires / RFPs in your house style, grounded in past Q&amp;A.
         </p>
       </div>
-      <div class="text-xs text-gray-600 font-mono">localhost:8084</div>
-      <div class="text-xs text-gray-500" id="info-agent">—</div>
-
-      <!-- Thinking mode toggle — visibile solo quando online -->
-      <div class="flex items-center justify-between bg-gray-800 rounded-xl px-3 py-2" id="thinking-row" style="display:none!important">
-        <span class="text-xs text-gray-400">🧠 Thinking mode</span>
-        <button id="thinking-btn" onclick="toggleThinking()"
-                class="text-xs px-2 py-0.5 rounded-full font-semibold transition"
-                style="background:#374151;color:#9ca3af">OFF</button>
-      </div>
-
-      <!-- Motore backend: si usa dalle chat CI · DI · MI -->
-      <div class="mt-auto text-center text-xs text-gray-600 bg-gray-800 rounded-xl py-2.5 leading-relaxed">
-        Interroga dalle chat<br>
-        <span class="text-gray-500 font-semibold">CI · DI · MI</span>
-      </div>
+      <div class="text-xs text-gray-600 font-mono">localhost:8085</div>
+      <div class="text-xs text-gray-500" id="info-proposal">—</div>
+      <a id="btn-proposal" href="http://localhost:8085" target="_blank"
+         class="mt-auto block text-center bg-gray-700 hover:bg-violet-700
+                text-sm py-2.5 rounded-xl font-semibold transition">
+        Apri →
+      </a>
     </div>
 
   </div>
@@ -158,65 +149,12 @@ _HTML = """\
 
 <script>
 const MODULES = [
-  { key:'code',   port:8080, hover:'hover:bg-indigo-700' },
-  { key:'doc',    port:8081, hover:'hover:bg-cyan-700'   },
-  { key:'mentor', port:8082, hover:'hover:bg-pink-700'   },
+  { key:'code',     port:8080, hover:'hover:bg-indigo-700' },
+  { key:'doc',      port:8081, hover:'hover:bg-cyan-700'   },
+  { key:'mentor',   port:8082, hover:'hover:bg-pink-700'   },
+  { key:'proposal', port:8085, hover:'hover:bg-violet-700' },
 ];
-const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve' };
-
-let _thinkingEnabled = false;
-
-async function pollAgent() {
-  try {
-    const r = await fetch('http://localhost:8084/health', { signal: AbortSignal.timeout(4000) });
-    if (!r.ok) { setAgentOffline(); return; }
-    const d = await r.json();
-    if (d.status === 'ok') {
-      document.getElementById('dot-agent').className   = 'w-2 h-2 rounded-full bg-orange-400';
-      document.getElementById('label-agent').textContent = '● online';
-      document.getElementById('label-agent').className   = 'text-xs text-orange-400';
-      document.getElementById('info-agent').textContent  =
-        (d.supports_tools ? 'tools ✓' : 'no tools') + ' · ' + (d.llm_backend || '—');
-      // show thinking toggle
-      document.getElementById('thinking-row').style.removeProperty('display');
-      _thinkingEnabled = d.thinking_mode || false;
-      _updateThinkingBtn();
-    } else { setAgentOffline(); }
-  } catch { setAgentOffline(); }
-}
-
-function setAgentOffline() {
-  document.getElementById('dot-agent').className   = 'w-2 h-2 rounded-full bg-gray-600 dot-pulse';
-  document.getElementById('label-agent').textContent = '○ offline';
-  document.getElementById('label-agent').className   = 'text-xs text-gray-500';
-  document.getElementById('info-agent').textContent  = 'ai-serve';
-  document.getElementById('thinking-row').style.display = 'none';
-}
-
-function _updateThinkingBtn() {
-  const btn = document.getElementById('thinking-btn');
-  if (_thinkingEnabled) {
-    btn.textContent = 'ON';
-    btn.style.background = '#f97316';
-    btn.style.color = '#fff';
-  } else {
-    btn.textContent = 'OFF';
-    btn.style.background = '#374151';
-    btn.style.color = '#9ca3af';
-  }
-}
-
-async function toggleThinking() {
-  const newVal = !_thinkingEnabled;
-  try {
-    const r = await fetch('http://localhost:8084/api/v1/thinking', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({enabled: newVal}),
-    });
-    if (r.ok) { _thinkingEnabled = newVal; _updateThinkingBtn(); }
-  } catch(e) { console.warn('thinking toggle failed', e); }
-}
+const CLI = { code:'ci-serve', doc:'di-serve', mentor:'mi-serve', proposal:'pi-serve' };
 
 async function poll() {
   let online = 0;
@@ -232,7 +170,6 @@ async function poll() {
     online === MODULES.length ? 'Tutti i moduli online ✓'
     : online === 0            ? 'Nessun modulo attivo — avvia i server dalla CLI'
     :                           online + ' / ' + MODULES.length + ' moduli online';
-  pollAgent();
 }
 
 function setOnline(m, d) {

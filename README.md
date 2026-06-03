@@ -531,12 +531,15 @@ pi-embed                                          # → ChromaDB "proposal_intel
 # 2. Answer a new questionnaire in the company style
 pi-answer examples/proposal/questionnaire.md --mode commercial -o risposte.md
 
-# 3. Or serve it
-pi-serve                                          # http://localhost:8085
+# 3. Or serve it — opens a web UI at http://localhost:8085 (also reachable from the launcher)
+pi-serve
 curl -X POST http://localhost:8085/api/v1/proposal/answer \
   -H "Content-Type: application/json" \
   -d '{"questions": ["Do you have cloud migration experience?"], "mode": "anchored"}'
 ```
+
+The `pi-serve` web UI lets you paste a questionnaire, pick the mode and see the styled answers (with
+their style sources) — and it shows up as a card in the **launcher** alongside the other modules.
 
 > **Multilingual matching.** Since questionnaires are often in Italian, give this module its own
 > embedder via the per-module override — no need to re-index the code/doc collections:
@@ -800,7 +803,7 @@ All variables are accepted as plain environment variables too — no `.env` file
 | `pi-ingest <corpus>` | ProposalIntelligence | Ingest a Q&A corpus (table/CSV/XLSX or `D:`/`R:` markers) → `qa_chunks.jsonl` |
 | `pi-embed [file]` | ProposalIntelligence | Embed Q&A pairs (on the question) into ChromaDB `proposal_intelligence` |
 | `pi-answer <questions>` | ProposalIntelligence | Auto-answer a questionnaire in house style → Markdown (`--mode anchored\|commercial`) |
-| `pi-serve` | ProposalIntelligence | Start the proposal server on `PI_PORT` (default 8085) |
+| `pi-serve` | ProposalIntelligence | Start the proposal server + web UI on `PI_PORT` (default 8085) |
 | `ci-eval` | intelligence_core | Run the RAGAS evaluation pipeline — `--domain code\|doc\|mentor\|all` (requires `[eval]`) |
 | `ci-graph` | intelligence_core | Build the dependency graph + stats (requires `[graph]`) |
 | `is-launch` | Launcher | Dashboard to start/stop/monitor all modules — port 8079 |
