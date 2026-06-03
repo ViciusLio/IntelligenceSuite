@@ -22,8 +22,13 @@ code + docs  →  parse  →  chunks  →  embed  →  ChromaDB  →  REST API  
 
 IntelligenceSuite is built in **two layers**: a shared engine (`intelligence_core`) that
 implements the entire RAG pipeline once, and a set of **domain modules** (Code, Doc, Mentor,
-Skill, Agent) that reuse that engine and only add domain-specific parsing and an API surface.
-Everything runs **on-premise by default** — Ollama for inference, ChromaDB embedded for storage.
+Skill, Agent, Proposal) that reuse that engine and only add domain-specific parsing and an API
+surface. Everything runs **on-premise by default** — Ollama for inference, ChromaDB embedded for
+storage.
+
+Most modules answer questions over your knowledge base via the standard pipeline (steps 1–2 below).
+**ProposalIntelligence** is the exception — it uses the same engine for retrieval but follows a
+*style-grounded* flow (step 3) to write answers in your house tone.
 
 ### 1 · Ingest — *one-time, offline*
 
@@ -78,7 +83,42 @@ flowchart TD
     class ANS out;
 ```
 
-A more detailed per-component breakdown lives in [Architecture](#architecture) below.
+### 3 · Style-grounded answering — *ProposalIntelligence*
+
+RFPs and vendor questionnaires don't need *facts retrieved* — they need answers written in a
+specific **corporate tone**, grounded in how you've answered before. So this module embeds the
+**question** of each past Q&A pair (not the whole text), so a *new* question — even if phrased
+differently — matches similar past ones; the retrieved pairs then become **few-shot style
+exemplars** for the LLM. A selectable `mode` controls how closely the answer sticks to the corpus.
+
+```mermaid
+flowchart LR
+    CORP["📝 Past Q&A corpus<br/>table · CSV · XLSX · D:/R:"] --> PP["pi-ingest<br/>1 chunk = 1 Q&A pair"]
+    PP --> QEMB["pi-embed<br/><b>embeds the question</b>"]
+    QEMB --> QDB[("ChromaDB<br/>proposal_intelligence")]
+
+    NEWQ["🧑 New questionnaire<br/><i>questions only</i>"] --> MATCH["🔍 Match similar<br/>past questions"]
+    QDB -.-> MATCH
+    MATCH --> FS["🧩 Few-shot style prompt<br/>retrieved Q&A as exemplars"]
+    FS --> MODE{"mode"}
+    MODE -->|"anchored"| GEN["🤖 LLM generation<br/>in house style"]
+    MODE -->|"commercial"| GEN
+    GEN --> OUT["✅ Styled answers<br/>+ style sources · Markdown / web UI"]
+
+    classDef src fill:#1e3a5f,stroke:#4a90d9,color:#fff;
+    classDef proc fill:#2d2d3a,stroke:#7c7c9c,color:#fff;
+    classDef store fill:#1f4d3a,stroke:#3fb27f,color:#fff;
+    classDef gen fill:#4a2d5f,stroke:#a96fd9,color:#fff;
+    classDef out fill:#1f4d3a,stroke:#3fb27f,color:#fff;
+    class CORP,NEWQ src;
+    class PP,QEMB,MATCH,FS proc;
+    class QDB store;
+    class GEN gen;
+    class OUT out;
+```
+
+A more detailed per-component breakdown lives in [Architecture](#architecture) below; the full
+ProposalIntelligence walkthrough is [here](#proposalintelligence--auto-answer-questionnaires-in-your-house-style).
 
 ---
 
@@ -917,6 +957,9 @@ layer entirely.
   cross-domain context before generating grounded LLM guidance.
 - **AgentIntelligence** — a ReAct loop for questions a single retrieval can't answer; reasons,
   calls tools (`search_code/docs/practices`, `analyze_impact`), observes, and iterates.
+- **ProposalIntelligence** — answers questionnaires/RFPs in your house style: ingests a corpus of
+  past Q&A, embeds the *question* for matching, and uses the retrieved pairs as few-shot style
+  exemplars (`anchored`/`commercial` modes); serves a web UI + API on `pi-serve`.
 
 The **launcher** (`intelligence_ui`, `is-launch`) is the operator's cockpit — it starts, stops,
 and monitors every server from one dashboard. The **eval runner** (`intelligence_eval`, `is-eval`)
@@ -952,6 +995,7 @@ IntelligenceSuite/
 ├── SkillIntelligence/       # Procedural guidance: skill registry, executor, cross-domain RAG
 │   └── skills/              #   bundled Python skill definitions
 ├── AgentIntelligence/       # ReAct agent: tool calling, multi-hop reasoning, ai-serve
+├── ProposalIntelligence/    # Questionnaire/RFP auto-answer in house style (qa_parser, prompts, web UI)
 ├── intelligence_eval/       # Eval runner (is-eval)
 ├── intelligence_ui/         # Launcher dashboard (port 8079)
 ├── skill_docs/              # Bundled Markdown skill templates
