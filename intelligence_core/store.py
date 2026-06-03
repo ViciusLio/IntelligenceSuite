@@ -85,6 +85,26 @@ class ChromaStore:
             })
         return chunks
 
+    def get_by_ids(self, chunk_ids: list[str]) -> list[dict]:
+        """Recupera chunk per ID. Usato da GraphRAG per i vicini strutturali."""
+        if not chunk_ids:
+            return []
+        res = self._col.get(ids=chunk_ids, include=["documents", "metadatas"])
+        chunks = []
+        for i, doc_id in enumerate(res["ids"]):
+            meta = res["metadatas"][i] if res["metadatas"] else {}
+            chunks.append({
+                "id":       doc_id,
+                "text":     res["documents"][i],
+                "domain":   meta.get("domain", ""),
+                "type":     meta.get("type", ""),
+                "source":   meta.get("source", ""),
+                "language": meta.get("language", ""),
+                "metadata": meta,
+                "score":    0.0,
+            })
+        return chunks
+
     def get_checksums(self) -> dict[str, str]:
         """Returns {chunk_id: checksum} for all indexed chunks.
 

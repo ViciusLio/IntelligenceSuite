@@ -97,6 +97,34 @@ TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_impact",
+            "description": (
+                "Analyze the blast radius of changing a function or class using "
+                "the code dependency graph. Returns direct callers, the total "
+                "number of affected functions, the impacted files, and a risk "
+                "level. Use before refactoring or to answer 'what breaks if I "
+                "change X' and 'who calls X'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "function_name": {
+                        "type": "string",
+                        "description": "Name of the function or class to analyze",
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Caller traversal depth (default 3)",
+                        "default": 3,
+                    },
+                },
+                "required": ["function_name"],
+            },
+        },
+    },
 ]
 
 # ── Collection mapping ────────────────────────────────────────────────────────
@@ -135,6 +163,9 @@ def execute_tool(name: str, args: dict) -> dict:
     Returns a dict with ``results`` (list of chunks) or ``error`` /
     ``note`` on failure — never raises.
     """
+    if name == "analyze_impact":
+        return _execute_analyze_impact(args)
+
     collection = _COLLECTION_MAP.get(name)
     if collection is None:
         logger.warning("AgentTools: tool sconosciuto '%s'", name)
@@ -171,3 +202,27 @@ def execute_tool(name: str, args: dict) -> dict:
     except Exception as exc:
         logger.warning("AgentTools: tool '%s' fallito: %s", name, exc)
         return {"results": [], "error": str(exc)}
+
+
+def _execute_analyze_impact(args: dict) -> dict:
+    """Run dependency-graph impact analysis for a function/class."""
+    function_name = str(args.get("function_name", "")).strip()
+    if not function_name:
+        return {"error": "Il parametro 'function_name' è obbligatorio"}
+
+    depth = int(args.get("depth", 3))
+
+    try:
+        from intelligence_core.graph.store import graph_exists
+        if not graph_exists("code"):
+            return {
+                "note": (
+                    "Grafo delle dipendenze non disponibile — "
+                    "esegui: ci-graph --domain code"
+                ),
+            }
+        from intelligence_core.graph.retriever import GraphRetriever
+        return GraphRetriever("code").impact_analysis(function_name, depth=depth)
+    except Exception as exc:
+        logger.warning("AgentTools: analyze_impact fallito: %s", exc)
+        return {"error": str(exc)}

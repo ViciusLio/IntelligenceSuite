@@ -40,10 +40,46 @@ class Retriever:
             chunk["score"] = chunk.get("score", 0.0) + boost
 
         raw.sort(key=lambda c: c["score"], reverse=True)
-        return [
+        results = [
             RetrievalResult(chunk=c, score=c["score"], rank=i + 1)
             for i, c in enumerate(raw[:top_k])
         ]
+
+        # GraphRAG — espansione opzionale via grafo, non breaking.
+        if domain == "code":
+            results = self._expand_with_graph(results, domain)
+
+        return results
+
+    def _expand_with_graph(self, results, domain):
+        try:
+            from intelligence_core.graph.store import graph_exists
+
+            if not graph_exists(domain):
+                return results
+            from intelligence_core.graph.retriever import GraphRetriever
+
+            graph_retriever = GraphRetriever(domain)
+            semantic_ids = [r.chunk["id"] for r in results]
+            graph_ids = graph_retriever.expand_context(semantic_ids, depth=1)
+            if not graph_ids:
+                return results
+            if not hasattr(self.store, "get_by_ids"):
+                return results
+            existing = set(semantic_ids)
+            extra_chunks = [
+                c for c in self.store.get_by_ids(graph_ids)
+                if c["id"] not in existing
+            ]
+            base_rank = len(results)
+            additional = [
+                RetrievalResult(chunk=c, score=c.get("score", 0.0), rank=base_rank + i + 1)
+                for i, c in enumerate(extra_chunks)
+            ]
+            return results + additional
+        except Exception as e:
+            logger.warning("GraphRAG expansion failed: %s", e)
+            return results
 
     @classmethod
     def load_default(cls, collection_name: str = "code_intelligence") -> "Retriever":

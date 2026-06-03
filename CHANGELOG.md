@@ -10,6 +10,46 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.0] — 2026-06-03
+
+### Added
+- **RAGAS Evaluation** (v0.5.x line)
+  - `intelligence_core/evaluation/` — pipeline completa (generator, runner, evaluator, report)
+  - CLI `ci-eval --domain --samples --regenerate --top-k`
+  - KPI target: faithfulness ≥ 0.75, answer_relevancy ≥ 0.75,
+    context_precision ≥ 0.70, context_recall ≥ 0.68
+  - Report storico su disco con delta vs valutazione precedente
+  - Dipendenza opzionale `[eval]` (ragas 0.2.x + langchain 0.3 pinnati) — zero impatto sul core
+- **Graph delle Dipendenze con NetworkX** (v0.6.x line)
+  - `intelligence_core/graph/` — builder (chunk JSONL → DiGraph), store (persistenza JSON),
+    retriever (who_calls, impact_analysis, dependencies_of, most_connected, expand_context)
+  - **GraphRAG** — espansione contestuale del retriever via grafo non orientato (callers + callees),
+    opzionale e non breaking: se il grafo non esiste o fallisce, il retrieval prosegue invariato
+  - Nuovo tool agente `analyze_impact` in `AgentIntelligence/tools.py`
+  - CLI `ci-graph --stats --top-critical`
+  - Metadati `calls`/`imports`/`bases`/`name` aggiunti al parser Python (additivo, AST invariato)
+  - Dipendenza opzionale `[graph]` (networkx)
+- **Tree-sitter Parser Multilanguage** (v0.7.0)
+  - `intelligence_core/parsers/` — `BaseParser`, `TreeSitterParser` e parser TypeScript, Go,
+    Java, Rust con parsing strutturale preciso (nomi funzione + chiamate estratte dall'AST)
+  - Adapter `CodeIntelligence/parsers/treesitter_adapter.py` — integra i parser class-based nel
+    registry modulare riemettendo i chunk in schema unificato; ha la precedenza su TS/Go regex
+    e aggiunge Java/Rust. Fallback automatico ai parser regex se `[multilang]` non è installato
+  - Parser Python AST invariato
+  - Dipendenza opzionale `[multilang]` (tree-sitter + tree-sitter-language-pack)
+
+### Changed
+- `pyproject.toml` versione `0.5.0` → `0.7.0`; nuovi extra `[eval]`, `[graph]`, `[multilang]`;
+  nuovi entry point `ci-eval`, `ci-graph`
+
+### Tests
+- Suite: **257 passed, 5 skipped** (baseline 0.5.0 invariata, zero regressioni)
+- Nuovi test: `tests/test_ragas_evaluation.py`, `tests/test_graph.py`,
+  `tests/test_treesitter_parsers.py`
+- Coverage parser Tree-sitter: 93% su `intelligence_core/parsers`
+
+---
+
 ## [0.5.0] — 2026-05-27
 
 ### Added

@@ -8,6 +8,14 @@ _PARSERS = []
 def _load_parsers():
     from . import python_parser
     _PARSERS.append(python_parser)
+    # Tree-sitter (opzionale, extra [multilang]): se disponibile gestisce
+    # TS/Go/Java/Rust con parsing strutturale preciso e ha la precedenza sui
+    # parser regex sottostanti. Se l'import fallisce si ricade sui regex.
+    try:
+        from . import treesitter_adapter
+        _PARSERS.append(treesitter_adapter)
+    except Exception:
+        pass
     try:
         from . import typescript_parser
         _PARSERS.append(typescript_parser)

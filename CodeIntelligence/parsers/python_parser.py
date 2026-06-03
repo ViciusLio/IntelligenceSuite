@@ -91,10 +91,14 @@ def _function_chunk(node: ast.FunctionDef, source: str, rel: str) -> dict | None
         domain="code", type_="function", locator=locator,
         text=text, source=rel, language="python",
         metadata={
+            "name":       name,
             "line_start": node.lineno,
             "line_end":   node.end_lineno,
             "is_async":   isinstance(node, ast.AsyncFunctionDef),
             "class":      None,
+            "calls":      _extract_calls(node),
+            "imports":    [],
+            "bases":      [],
         },
     )
 
@@ -132,9 +136,13 @@ def _class_chunk(node: ast.ClassDef, source: str, rel: str) -> dict | None:
         domain="code", type_="class", locator=locator,
         text=text, source=rel, language="python",
         metadata={
+            "name":         name,
             "line_start":   node.lineno,
             "line_end":     node.end_lineno,
             "base_classes": bases,
+            "bases":        bases,
+            "calls":        [],
+            "imports":      [],
         },
     )
 
@@ -147,6 +155,19 @@ def _raw_chunk(source: str, rel: str, filename: str) -> dict:
         text=text, source=rel, language="python",
         metadata={"raw": True},
     )
+
+
+def _extract_calls(node: ast.AST) -> list[str]:
+    """Nomi delle funzioni/metodi chiamati nel corpo del nodo (deduplicati)."""
+    calls: set[str] = set()
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Call):
+            func = sub.func
+            if isinstance(func, ast.Name):
+                calls.add(func.id)
+            elif isinstance(func, ast.Attribute):
+                calls.add(func.attr)
+    return sorted(calls)
 
 
 def _format_args(args: ast.arguments) -> str:

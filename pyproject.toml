@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligence-suite"
-version = "0.5.0"
+version = "0.7.0"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
 license = "MIT"
@@ -50,7 +50,20 @@ openai = ["openai>=1.0.0"]
 claude = ["anthropic>=0.25.0"]
 dev    = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.4.0", "mypy>=1.10.0"]
 ui     = ["streamlit>=1.35.0"]
-all    = ["intelligence-suite[pdf,ocr,docx,xlsx,st,openai,claude,ui]"]
+eval     = [
+    "ragas>=0.2,<0.3",
+    "datasets>=2.0",
+    # ragas 0.2.x declares unpinned langchain deps; pip otherwise resolves
+    # langchain 1.x which removed modules ragas 0.2 imports. Pin the 0.3 line.
+    "langchain>=0.3,<0.4",
+    "langchain-core>=0.3,<0.4",
+    "langchain-community>=0.3,<0.4",
+    "langchain-openai>=0.2,<0.3",
+    "langchain-text-splitters>=0.3,<0.4",
+]
+graph    = ["networkx>=3.0"]
+multilang = ["tree-sitter>=0.23", "tree-sitter-language-pack>=0.7"]
+all    = ["intelligence-suite[pdf,ocr,docx,xlsx,st,openai,claude,ui,graph]"]
 
 [project.scripts]
 ci-parse   = "CodeIntelligence.parse_repo:main"
@@ -66,6 +79,8 @@ si-ingest  = "SkillIntelligence.registry:ingest_cli"
 ai-serve   = "AgentIntelligence.agent_stub:main"
 is-launch  = "intelligence_ui.launcher:main"
 is-eval    = "intelligence_eval.eval_runner:main"
+ci-eval    = "intelligence_core.eval_cli:main"
+ci-graph   = "intelligence_core.graph.graph_cli:main"
 
 [project.urls]
 Homepage   = "https://github.com/ViciusLio/IntelligenceSuite"

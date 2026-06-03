@@ -132,20 +132,27 @@ class TestTools:
         assert "error" in result
         assert "ChromaDB timeout" in result["error"]
 
-    def test_tools_schema_has_three_entries(self):
+    def test_tools_schema_has_expected_entries(self):
         from AgentIntelligence.tools import TOOLS
-        assert len(TOOLS) == 3
+        assert len(TOOLS) == 4
 
     def test_tools_schema_names_and_structure(self):
         from AgentIntelligence.tools import TOOLS
         names = {t["function"]["name"] for t in TOOLS}
-        assert names == {"search_code", "search_docs", "search_practices"}
+        assert names == {
+            "search_code", "search_docs", "search_practices", "analyze_impact"
+        }
+        search_tools = {"search_code", "search_docs", "search_practices"}
         for tool in TOOLS:
             assert tool["type"] == "function"
             assert "description" in tool["function"]
             params = tool["function"]["parameters"]
-            assert "query" in params["properties"]
-            assert "query" in params["required"]
+            if tool["function"]["name"] in search_tools:
+                assert "query" in params["properties"]
+                assert "query" in params["required"]
+            else:
+                assert "function_name" in params["properties"]
+                assert "function_name" in params["required"]
 
     def test_text_truncated_at_600_chars(self):
         from AgentIntelligence.tools import execute_tool
