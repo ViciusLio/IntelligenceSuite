@@ -10,6 +10,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.4] — 2026-06-03
+
+### Added
+- **Eval integrato `ci-eval --domain all`**: valuta il sistema su *tutte* le
+  collection insieme (code + doc + mentor). Il testset è generato unendo
+  `chunks.jsonl` + `doc_chunks.jsonl` + `mentor_chunks.jsonl`, e il retrieval usa
+  il nuovo `MultiRetriever` che raccoglie i candidati da ogni collection, li fonde
+  e applica **un solo rerank globale** prima del taglio a `top_k`.
+- `intelligence_core/retriever.py`: classe `MultiRetriever` (+ `load_default`),
+  resiliente a collection vuote/assenti (uno store rotto non blocca gli altri).
+- `intelligence_core/evaluation/paths.py`: `BASE_DOMAINS`, `get_all_chunk_paths`,
+  `get_all_collections`.
+
+---
+
 ## [0.7.3] — 2026-06-03
 
 ### Added

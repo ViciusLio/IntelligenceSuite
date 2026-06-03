@@ -110,3 +110,53 @@ class Retriever:
         from intelligence_core.embedder import get_embedder
         from intelligence_core.store import ChromaStore
         return cls(embedder=get_embedder(), store=ChromaStore(collection_name=collection_name))
+
+
+class MultiRetriever:
+    """Retrieval fuso su più collection (es. eval ``--domain all``).
+
+    Raccoglie i candidati da ogni collection, li unisce in un unico pool, poi
+    applica **un solo** rerank globale → top_k. Riusa reranker/keyword del
+    Retriever, così la classifica finale è coerente tra domini diversi.
+
+    Tutte le collection devono condividere lo stesso embedder/dimensioni
+    (garantito: l'embedder è unico, da ``settings.embed_backend``).
+    """
+
+    def __init__(self, embedder, stores: list):
+        self.embedder = embedder
+        self.stores = stores
+
+    def search(self, query: str, top_k: int = 5) -> list[RetrievalResult]:
+        from intelligence_core.config import settings
+        from intelligence_core.reranker import get_reranker
+
+        embedding = self.embedder.embed_one(query)
+        reranker = get_reranker()
+        fetch_k = max(top_k * 2, settings.rerank_candidates) if reranker else top_k * 2
+
+        pool: list[dict] = []
+        for store in self.stores:
+            try:
+                pool.extend(store.search(embedding, top_k=fetch_k, filters=None))
+            except Exception as e:  # collection vuota/assente non deve rompere
+                logger.warning("MultiRetriever: store.search fallito (%s)", e)
+
+        if reranker:
+            top_chunks = reranker.rerank(query, pool, top_k=top_k)
+        else:
+            top_chunks = Retriever._keyword_rerank(query, pool, top_k=top_k)
+
+        return [
+            RetrievalResult(chunk=c, score=c["score"], rank=i + 1)
+            for i, c in enumerate(top_chunks)
+        ]
+
+    @classmethod
+    def load_default(cls, collection_names: list[str]) -> "MultiRetriever":
+        from intelligence_core.embedder import get_embedder
+        from intelligence_core.store import ChromaStore
+
+        embedder = get_embedder()
+        stores = [ChromaStore(collection_name=name) for name in collection_names]
+        return cls(embedder=embedder, stores=stores)

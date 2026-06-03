@@ -9,7 +9,7 @@ import pytest
 
 import intelligence_core.reranker as reranker_mod
 from intelligence_core.reranker import CrossEncoderReranker, _sigmoid, get_reranker
-from intelligence_core.retriever import Retriever
+from intelligence_core.retriever import MultiRetriever, Retriever
 
 
 # ── _sigmoid ────────────────────────────────────────────────────────────────
@@ -130,3 +130,44 @@ def test_search_falls_back_to_keyword_when_no_reranker(monkeypatch):
     # I chunk che contengono i termini di query ricevono il boost e salgono.
     top_ids = {res.chunk["id"] for res in results}
     assert "3" in top_ids and "7" in top_ids
+
+
+# ── MultiRetriever (eval --domain all) ────────────────────────────────────────
+def _tagged_chunks(prefix, n):
+    return [
+        {"id": f"{prefix}-{i}", "text": f"{prefix} term{i}", "score": 0.0}
+        for i in range(n)
+    ]
+
+
+def test_multiretriever_pools_all_collections_and_reranks(monkeypatch):
+    code = _FakeStore(_tagged_chunks("code", 6))
+    doc = _FakeStore(_tagged_chunks("doc", 6))
+    mentor = _FakeStore(_tagged_chunks("mentor", 6))
+    mr = MultiRetriever(embedder=_FakeEmbedder(), stores=[code, doc, mentor])
+    monkeypatch.setattr("intelligence_core.reranker.get_reranker", lambda: _ReverseReranker())
+
+    results = mr.search("term0", top_k=4)
+
+    # Ogni store interrogato col pool allargato (max(top_k*2=8, candidates=20)=20)
+    assert code.last_top_k == doc.last_top_k == mentor.last_top_k == 20
+    assert len(results) == 4
+    # Il pool fuso contiene chunk di domini diversi: la classifica è globale.
+    prefixes = {res.chunk["id"].split("-")[0] for res in results}
+    assert prefixes <= {"code", "doc", "mentor"}
+    assert results[0].rank == 1
+
+
+def test_multiretriever_survives_failing_store(monkeypatch):
+    class _BoomStore:
+        def search(self, embedding, top_k, filters=None):
+            raise RuntimeError("collection assente")
+
+    ok = _FakeStore(_tagged_chunks("code", 5))
+    mr = MultiRetriever(embedder=_FakeEmbedder(), stores=[_BoomStore(), ok])
+    monkeypatch.setattr("intelligence_core.reranker.get_reranker", lambda: None)
+
+    results = mr.search("term1", top_k=3)
+
+    assert len(results) == 3  # lo store rotto è ignorato, l'altro risponde
+    assert all(res.chunk["id"].startswith("code") for res in results)

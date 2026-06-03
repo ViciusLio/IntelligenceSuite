@@ -675,7 +675,7 @@ All variables are accepted as plain environment variables too — no `.env` file
 | `si-ingest <dir>` | SkillIntelligence | Load / list Markdown skills from a directory |
 | `si-serve` | SkillIntelligence | Start the skill guidance server on `SI_PORT` (default 8083) |
 | `ai-serve` | AgentIntelligence | Start the ReAct agent server on `AGENT_PORT` (default 8084) |
-| `ci-eval` | intelligence_core | Run the RAGAS evaluation pipeline (requires `[eval]`) |
+| `ci-eval` | intelligence_core | Run the RAGAS evaluation pipeline — `--domain code\|doc\|mentor\|all` (requires `[eval]`) |
 | `ci-graph` | intelligence_core | Build the dependency graph + stats (requires `[graph]`) |
 | `is-launch` | Launcher | Dashboard to start/stop/monitor all modules — port 8079 |
 

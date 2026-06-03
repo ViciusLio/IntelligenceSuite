@@ -25,11 +25,26 @@ COLLECTIONS = {
     "mentor": "mentor_intelligence",
 }
 
+# Domini reali (escluso lo pseudo-dominio "all" usato per l'eval integrato).
+BASE_DOMAINS = ("code", "doc", "mentor")
+
 
 def get_chunks_path(domain: str, base_dir: Path | None = None) -> Path:
     base = base_dir or Path.cwd()
     return base / CHUNK_FILES[domain]
 
 
+def get_all_chunk_paths(base_dir: Path | None = None) -> list[Path]:
+    """Path dei chunk di tutti i domini base che esistono su disco (eval 'all')."""
+    return [
+        p for p in (get_chunks_path(d, base_dir) for d in BASE_DOMAINS) if p.exists()
+    ]
+
+
 def get_collection(domain: str) -> str:
     return COLLECTIONS[domain]
+
+
+def get_all_collections() -> list[str]:
+    """Nomi di tutte le collection base (eval 'all')."""
+    return [COLLECTIONS[d] for d in BASE_DOMAINS]

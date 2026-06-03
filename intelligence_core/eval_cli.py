@@ -8,7 +8,13 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(description="Valuta la qualità del RAG con RAGAS")
-    parser.add_argument("--domain", choices=["code", "doc", "mentor"], default="code")
+    parser.add_argument(
+        "--domain",
+        choices=["code", "doc", "mentor", "all"],
+        default="code",
+        help="Dominio da valutare. 'all' = eval integrato su tutte le collection "
+        "(code+doc+mentor), retrieval fuso con rerank globale.",
+    )
     parser.add_argument("--samples", type=int, default=50)
     parser.add_argument("--regenerate", action="store_true")
     parser.add_argument("--top-k", type=int, default=5)

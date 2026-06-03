@@ -12,9 +12,9 @@ import random
 from pathlib import Path
 from typing import Literal
 
-from intelligence_core.evaluation.paths import get_chunks_path
+from intelligence_core.evaluation.paths import get_all_chunk_paths, get_chunks_path
 
-Domain = Literal["code", "doc", "mentor"]
+Domain = Literal["code", "doc", "mentor", "all"]
 
 # Number of source documents fed into the RAGAS knowledge-graph builder.
 # RAGAS builds a KG over every document and then runs find_indirect_clusters,
@@ -40,18 +40,34 @@ def generate_testset(
         print(f"Carico testset dalla cache: {cache_path}")
         return _load_from_cache(cache_path)
 
-    chunks_path = _get_chunks_path(domain)
-    if not chunks_path.exists():
-        raise FileNotFoundError(
-            f"Chunks non trovati per '{domain}' ({chunks_path}). "
-            f"Esegui prima: ci-parse e ci-embed."
+    if domain == "all":
+        paths = get_all_chunk_paths()
+        if not paths:
+            raise FileNotFoundError(
+                "Nessun file di chunk trovato per l'eval integrato 'all' "
+                "(chunks.jsonl / doc_chunks.jsonl / mentor_chunks.jsonl). "
+                "Esegui prima ci-parse/ci-embed (+ di-* e mi-* per gli altri domini)."
+            )
+        documents = []
+        for p in paths:
+            documents.extend(_load_chunks_as_documents(p, min_chars=min_chunk_chars))
+        print(
+            f"Caricati {len(documents)} documenti da {len(paths)} file "
+            f"{[p.name for p in paths]} (filtro lunghezza >= {min_chunk_chars} caratteri)"
         )
+    else:
+        chunks_path = _get_chunks_path(domain)
+        if not chunks_path.exists():
+            raise FileNotFoundError(
+                f"Chunks non trovati per '{domain}' ({chunks_path}). "
+                f"Esegui prima: ci-parse e ci-embed."
+            )
 
-    documents = _load_chunks_as_documents(chunks_path, min_chars=min_chunk_chars)
-    print(
-        f"Caricati {len(documents)} documenti per '{domain}' "
-        f"(dopo filtro lunghezza >= {min_chunk_chars} caratteri)"
-    )
+        documents = _load_chunks_as_documents(chunks_path, min_chars=min_chunk_chars)
+        print(
+            f"Caricati {len(documents)} documenti per '{domain}' "
+            f"(dopo filtro lunghezza >= {min_chunk_chars} caratteri)"
+        )
 
     documents = _cap_documents(documents, max_docs)
     print(

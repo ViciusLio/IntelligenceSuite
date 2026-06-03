@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from intelligence_core.evaluation.paths import get_collection
+from intelligence_core.evaluation.paths import get_all_collections, get_collection
 
-Domain = Literal["code", "doc", "mentor"]
+Domain = Literal["code", "doc", "mentor", "all"]
 
 
 def run_testset(
@@ -18,9 +18,12 @@ def run_testset(
     top_k: int = 5,
 ) -> list[dict]:
     from intelligence_core.llm import get_llm_provider
-    from intelligence_core.retriever import Retriever
+    from intelligence_core.retriever import MultiRetriever, Retriever
 
-    retriever = Retriever.load_default(collection_name=get_collection(domain))
+    if domain == "all":
+        retriever = MultiRetriever.load_default(get_all_collections())
+    else:
+        retriever = Retriever.load_default(collection_name=get_collection(domain))
     llm = get_llm_provider()
 
     results = []
@@ -30,7 +33,10 @@ def run_testset(
         question = row["question"]
         print(f"  [{i}/{total}] {question[:60]}...")
 
-        retrieved = retriever.search(query=question, top_k=top_k, domain=domain)
+        if domain == "all":
+            retrieved = retriever.search(query=question, top_k=top_k)
+        else:
+            retrieved = retriever.search(query=question, top_k=top_k, domain=domain)
         contexts = [r.chunk["text"] for r in retrieved]
         context_str = "\n\n---\n\n".join(contexts)
 
