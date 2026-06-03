@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/intelligence-suite.svg)](https://pypi.org/project/intelligence-suite/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-257%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-258%20passed-brightgreen.svg)](tests/)
 
 A modular RAG suite for enterprise on-premise environments.
 Index your codebase and company documents; query them in natural language with precise source citations.
@@ -738,7 +738,7 @@ non-source directories.
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
-# 257 passed, 5 skipped (KPI — require indexed store), 0 failed
+# 258 passed, 5 skipped (KPI — require indexed store), 0 failed
 ```
 
 ---

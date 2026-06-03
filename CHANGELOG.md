@@ -10,6 +10,29 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.7.1] — 2026-06-03
+
+### Added
+- `THINKING_MODE` tri-stato (`unset` / `true` / `false`): oltre ad attivare il
+  chain-of-thought ora può **disattivarlo** esplicitamente sui modelli thinking
+  (Qwen3, DeepSeek-R1…). Il flag viene emesso per vLLM (`enable_thinking`) e
+  Ollama (`think` nativo) su tutti i path: `generate`, `stream`, `generate_with_tools`.
+- `ci-eval --max-docs` (default 150) per limitare il corpus passato al knowledge
+  graph RAGAS.
+
+### Fixed
+- **`ci-eval` si piantava** su corpus grandi: `generate_testset` passava l'intero
+  corpus (1500+ chunk) a RAGAS, e `find_indirect_clusters` (DFS ricorsiva) esplode
+  su grafi grandi/densi. Ora il corpus è limitato (`--max-docs`) e i chunk troppo
+  corti per ottenere un summary vengono scartati.
+
+### Changed
+- README riscritto: solo le funzionalità della 0.7.x, inglese uniforme, rimossi i
+  walkthrough Jupyter e gli esempi duplicati, roadmap/vector-store stantii corretti.
+- `pyproject.toml` versione `0.7.0` → `0.7.1`.
+
+---
+
 ## [0.7.0] — 2026-06-03
 
 ### Added
