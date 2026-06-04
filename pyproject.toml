@@ -46,6 +46,7 @@ ocr  = ["pytesseract>=0.3.10", "Pillow>=10.0.0"]
 docx = ["python-docx>=1.1.0"]
 xlsx = ["openpyxl>=3.1.0"]
 ingest = ["python-multipart>=0.0.9"]   # enables POST /api/v1/ingest/upload
+export = ["fpdf2>=2.7.0"]               # enables PDF output for POST /api/v1/export
 st     = ["sentence-transformers>=2.7.0"]
 openai = ["openai>=1.0.0"]
 claude = ["anthropic>=0.25.0"]
@@ -64,7 +65,7 @@ eval     = [
 ]
 graph    = ["networkx>=3.0"]
 multilang = ["tree-sitter>=0.23", "tree-sitter-language-pack>=0.7"]
-all    = ["intelligence-suite[pdf,ocr,docx,xlsx,st,openai,claude,ui,graph]"]
+all    = ["intelligence-suite[pdf,ocr,docx,xlsx,ingest,export,st,openai,claude,ui,graph]"]
 
 [project.scripts]
 ci-parse   = "CodeIntelligence.parse_repo:main"

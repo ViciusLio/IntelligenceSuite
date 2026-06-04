@@ -36,6 +36,22 @@ PROPOSAL_HTML = """<!DOCTYPE html>
            text-gray-200 transition mr-3">
     📥 Indicizza
   </button>
+  <div class="relative mr-3">
+    <button id="export-btn" onclick="toggleExportMenu(event)"
+      class="hidden text-xs px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700
+             text-gray-200 transition">
+      ⬇︎ Esporta
+    </button>
+    <div id="export-menu" class="hidden absolute right-0 mt-1 w-44 bg-gray-900
+                border border-gray-800 rounded-lg shadow-lg py-1 z-40 text-xs">
+      <button onclick="downloadExport('markdown')"
+              class="block w-full text-left px-3 py-2 hover:bg-gray-800 text-gray-200">Markdown (.md)</button>
+      <button onclick="downloadExport('html')"
+              class="block w-full text-left px-3 py-2 hover:bg-gray-800 text-gray-200">HTML (.html)</button>
+      <button onclick="downloadExport('pdf')"
+              class="block w-full text-left px-3 py-2 hover:bg-gray-800 text-gray-200">PDF (.pdf)</button>
+    </div>
+  </div>
   <div class="text-right text-xs">
     <div id="status" class="text-gray-500">verifico…</div>
     <div id="meta" class="text-gray-600 font-mono mt-0.5"></div>
@@ -130,6 +146,7 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 
 <script>
 const API = location.origin;
+let _lastData = null;   // last answer payload, for export
 
 async function health() {
   try {
@@ -223,6 +240,57 @@ async function pollIngest(jobId) {
   }
 }
 
+// ── Export (download answers as Markdown / HTML / PDF) ────────────────────────
+function toggleExportMenu(evt) {
+  if (evt) evt.stopPropagation();
+  document.getElementById('export-menu').classList.toggle('hidden');
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('export-menu');
+  const btn  = document.getElementById('export-btn');
+  if (menu && !menu.classList.contains('hidden') &&
+      !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.add('hidden');
+  }
+});
+
+async function downloadExport(fmt) {
+  document.getElementById('export-menu').classList.add('hidden');
+  if (!_lastData || !_lastData.answers || !_lastData.answers.length) {
+    alert('Nessuna risposta da esportare.');
+    return;
+  }
+  const sections = _lastData.answers.map(a => ({
+    heading: a.question, body: a.answer, sources: a.sources || [],
+  }));
+  try {
+    const resp = await fetch(API + '/api/v1/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: fmt, title: 'Risposte ProposalIntelligence', sections }),
+    });
+    if (!resp.ok) {
+      let detail = 'errore ' + resp.status;
+      try { const e = await resp.json(); if (e.detail) detail = e.detail; } catch {}
+      alert('Export non riuscito: ' + detail);
+      return;
+    }
+    const blob = await resp.blob();
+    let filename = 'risposte';
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^"]+)"?/);
+    if (m) filename = m[1];
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Export non riuscito: ' + err.message);
+  }
+}
+
 function esc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -234,6 +302,8 @@ function render(data) {
     box.innerHTML = '<div class="text-gray-500 text-sm p-6">Nessuna risposta.</div>';
     return;
   }
+  _lastData = data;
+  document.getElementById('export-btn').classList.remove('hidden');
   const head = document.createElement('div');
   head.className = 'text-xs text-gray-500';
   head.textContent = 'Modalità: ' + data.mode + ' · backend: ' + data.backend

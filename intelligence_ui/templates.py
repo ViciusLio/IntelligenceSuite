@@ -95,6 +95,22 @@ CHAT_HTML = """<!DOCTYPE html>
       <p class="text-xs text-gray-400">Semantic search · Source-cited answers · On-premise</p>
     </div>
     <div class="flex items-center gap-3">
+      <div class="relative">
+        <button id="export-btn" onclick="toggleExportMenu(event)"
+                class="text-xs text-gray-500 hover:text-gray-800 border border-gray-200
+                       rounded-lg px-3 py-1.5 hover:bg-gray-50 transition">
+          ⬇︎ Esporta
+        </button>
+        <div id="export-menu" class="hidden absolute right-0 mt-1 w-44 bg-white border
+                    border-gray-200 rounded-lg shadow-lg py-1 z-40 text-xs">
+          <button onclick="downloadExport('markdown')"
+                  class="block w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700">Markdown (.md)</button>
+          <button onclick="downloadExport('html')"
+                  class="block w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700">HTML (.html)</button>
+          <button onclick="downloadExport('pdf')"
+                  class="block w-full text-left px-3 py-2 hover:bg-gray-50 text-gray-700">PDF (.pdf)</button>
+        </div>
+      </div>
       <div id="dot" class="w-2 h-2 rounded-full bg-gray-300"></div>
       <span id="dot-label" class="text-xs text-gray-400">—</span>
     </div>
@@ -675,6 +691,69 @@ async function pollIngest(jobId) {
     _ingestStatus('⚠️ ' + err.message, 'err');
     runBtn.disabled = false;
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  EXPORT (download current conversation as Markdown / HTML / PDF)
+// ════════════════════════════════════════════════════════════════════════════
+function toggleExportMenu(evt) {
+  if (evt) evt.stopPropagation();
+  document.getElementById('export-menu').classList.toggle('hidden');
+}
+
+// Close the export menu when clicking elsewhere.
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('export-menu');
+  const btn  = document.getElementById('export-btn');
+  if (menu && !menu.classList.contains('hidden') &&
+      !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.add('hidden');
+  }
+});
+
+function _conversationSections() {
+  const conv = _getConv(_currentId);
+  if (!conv || !conv.messages.length) return null;
+  return conv.messages.map(m => ({
+    heading: m.role === 'user' ? 'Tu' : 'Assistant',
+    body:    m.content,
+    sources: m.sources || [],
+  }));
+}
+
+async function downloadExport(fmt) {
+  document.getElementById('export-menu').classList.add('hidden');
+  const sections = _conversationSections();
+  if (!sections) { alert('Nessuna conversazione da esportare.'); return; }
+  const conv = _getConv(_currentId);
+  try {
+    const resp = await fetch('/api/v1/export', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ format: fmt, title: conv.title, sections })
+    });
+    if (!resp.ok) {
+      let detail = 'errore ' + resp.status;
+      try { const e = await resp.json(); if (e.detail) detail = e.detail; } catch {}
+      alert('Export non riuscito: ' + detail);
+      return;
+    }
+    _triggerDownload(await resp.blob(), resp);
+  } catch (err) {
+    alert('Export non riuscito: ' + err.message);
+  }
+}
+
+function _triggerDownload(blob, resp) {
+  let filename = 'export';
+  const cd = resp.headers.get('Content-Disposition') || '';
+  const m = cd.match(/filename="?([^"]+)"?/);
+  if (m) filename = m[1];
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
 }
 
 // ════════════════════════════════════════════════════════════════════════════

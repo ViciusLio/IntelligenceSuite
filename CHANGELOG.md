@@ -9,6 +9,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Export** (SOTTO-FASE D) — `POST /api/v1/export` on every module server (and
+  the Proposal server) turns a client-supplied document (a title + sections, e.g.
+  a chat conversation or a set of Proposal answers) into a downloadable file.
+  - `intelligence_core/export.py` — renderers for **Markdown** and a standalone
+    **HTML** page (stdlib, always available) and **PDF** (via `fpdf2`).
+  - `intelligence_core/export_api.py` — the route; returns the file as an
+    attachment with the right `Content-Type` / `Content-Disposition`. Unknown
+    format → 400; `format=pdf` without the extra → 503 (Markdown/HTML keep working).
+  - **`[export]` optional extra** (`pyproject.toml`): `fpdf2` — enables PDF output
+    without adding a hard dependency. Also folded `ingest` + `export` into `[all]`.
+  - **UI**: a "⬇︎ Esporta" menu (Markdown / HTML / PDF) in the chat top bar
+    (exports the active conversation) and in the Proposal header (exports the
+    generated answers, shown once answers exist).
+  - **Tests**: `tests/test_export_api.py` — renderers, PDF magic-bytes + the
+    dependency-missing 503 branch, and the HTTP route per format (10 tests).
 - **Ingest UI** (SOTTO-FASE C) — a "📥 Indicizza contenuti" panel in the chat UI
   (`intelligence_ui/templates.py`, shared by Code/Doc/Mentor) and in the
   ProposalIntelligence single-page UI (`ProposalIntelligence/web.py`). The panel

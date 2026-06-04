@@ -62,9 +62,19 @@ class TestTemplateMarkers:
                        "/api/v1/ingest/status/"):
             assert marker in CHAT_HTML, marker
 
+    def test_chat_html_has_export_control(self):
+        from intelligence_ui.templates import CHAT_HTML
+        for marker in ("export-btn", "downloadExport", "/api/v1/export"):
+            assert marker in CHAT_HTML, marker
+
     def test_proposal_html_has_ingest_panel(self):
         from ProposalIntelligence.web import PROPOSAL_HTML
         for marker in ("ingest-btn", "ingest-modal", "openIngest",
                        "submitIngest", "pollIngest",
                        "/api/v1/ingest/upload", "/api/v1/ingest/status/"):
+            assert marker in PROPOSAL_HTML, marker
+
+    def test_proposal_html_has_export_control(self):
+        from ProposalIntelligence.web import PROPOSAL_HTML
+        for marker in ("export-btn", "downloadExport", "/api/v1/export"):
             assert marker in PROPOSAL_HTML, marker

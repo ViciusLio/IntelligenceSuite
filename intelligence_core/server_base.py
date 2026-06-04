@@ -226,6 +226,10 @@ def create_app(
     from intelligence_core.ingest_api import add_ingest_routes
     add_ingest_routes(app, module=module)
 
+    # ── Export: POST /api/v1/export (Markdown/HTML always, PDF via [export]) ──
+    from intelligence_core.export_api import add_export_routes
+    add_export_routes(app, module=module)
+
     # ── Chat UI ───────────────────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def chat_ui():

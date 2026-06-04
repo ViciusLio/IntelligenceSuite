@@ -57,6 +57,9 @@ def build_app() -> FastAPI:
     from intelligence_core.ingest_api import add_ingest_routes
     add_ingest_routes(app, module="proposal")
 
+    from intelligence_core.export_api import add_export_routes
+    add_export_routes(app, module="proposal")
+
     from intelligence_core import paths
     store = ChromaStore(collection_name=paths.collection_name("qa"),
                         persist_dir=str(paths.chroma_dir()))
