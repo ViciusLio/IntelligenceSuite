@@ -124,6 +124,15 @@ class Settings(BaseSettings):
     thinking_mode:        bool | None = None
     agent_max_iterations: int  = 5
 
+    # ── API authentication (v0.9.1) ───────────────────────────────────────────
+    # IS_AUTH_ENABLED=false (default) → no checks, identical to v0.8.x.
+    # IS_AUTH_ENABLED=true  → all /api/v1/* endpoints require:
+    #     Authorization: Bearer <IS_API_KEY>
+    # /health and / (web UI) remain public regardless.
+    # Warning logged at boot if IS_AUTH_ENABLED=true and IS_API_KEY is empty.
+    is_auth_enabled: bool = False
+    is_api_key:      str  = ""
+
     # ── Multi-project namespacing ─────────────────────────────────────────────
     # Set IS_PROJECT to isolate collections and state dirs per project.
     # Default ("default") replicates the exact single-project behavior of v0.8.x.

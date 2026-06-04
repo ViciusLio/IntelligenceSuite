@@ -73,6 +73,10 @@ def build_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    from intelligence_core.auth import add_auth_middleware, warn_if_key_missing
+    add_auth_middleware(app)
+    warn_if_key_missing()
+
     @app.get("/", include_in_schema=False)
     def root():
         return RedirectResponse(url="/docs")

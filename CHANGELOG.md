@@ -10,6 +10,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.9.1] — 2026-06-04
+
+### Added
+- **API Bearer-token authentication** (`IS_AUTH_ENABLED` / `IS_API_KEY`): when
+  `IS_AUTH_ENABLED=true`, all `/api/v1/*` endpoints require the header
+  `Authorization: Bearer <IS_API_KEY>`.  `/health` and `/` remain public.
+  Returns `{"detail":"Unauthorized"}` with HTTP 401 on missing/wrong token.
+- New module `intelligence_core/auth.py` — pure ASGI middleware (no response
+  buffering, SSE streaming unaffected) + `add_auth_middleware()` helper +
+  `warn_if_key_missing()` startup warning.
+- `IS_AUTH_ENABLED=false` default → zero breaking changes vs v0.9.0.
+- Boot warning logged when `IS_AUTH_ENABLED=true` and `IS_API_KEY` is empty.
+
+### Changed
+- `intelligence_core/server_base.py`, `SkillIntelligence/skill_server.py`,
+  `AgentIntelligence/agent_server.py`, `ProposalIntelligence/proposal_server.py`:
+  all call `add_auth_middleware()` and `warn_if_key_missing()` at startup.
+- `.env.example`: documents the new `IS_AUTH_ENABLED` and `IS_API_KEY` variables.
+
+---
+
 ## [0.9.0] — 2026-06-04
 
 ### Added

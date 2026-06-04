@@ -212,6 +212,11 @@ def create_app(
         allow_headers=["*"],
     )
 
+    # ── Auth (outermost layer — rejects 401 before reaching any handler) ──────
+    from intelligence_core.auth import add_auth_middleware, warn_if_key_missing
+    add_auth_middleware(app)
+    warn_if_key_missing()
+
     # ── Chat UI ───────────────────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def chat_ui():
