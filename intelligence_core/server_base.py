@@ -178,8 +178,12 @@ def create_app(
                         when routing is enabled and not explicitly provided.
         skill_executor: Optional SkillExecutor — loaded lazily when routing is enabled.
     """
+    from intelligence_core.config import settings
     app     = FastAPI(title=title, version="0.2.0")
-    _policy = policy or EscalationPolicy()
+    _policy = policy or EscalationPolicy(
+        threshold=settings.escalation_threshold,
+        max_local_tokens=settings.escalation_max_tokens,
+    )
     _llm    = llm_provider or get_llm_provider()
     _skill_registry = skill_registry
     _skill_executor = skill_executor

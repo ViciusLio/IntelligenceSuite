@@ -8,6 +8,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.13.1] — 2026-06-04
+
+### Fixed
+- **`ESCALATION_THRESHOLD` / `ESCALATION_MAX_TOKENS` were silently ignored** — the
+  RAG server constructed `EscalationPolicy()` with no arguments, and the policy
+  read its threshold from `os.getenv(...)`. pydantic-settings loads `.env` into
+  the `settings` object but does **not** inject those values into `os.environ`,
+  so `os.getenv("ESCALATION_THRESHOLD")` never saw the `.env` value and the
+  threshold stayed at the hardcoded `0.70` (the `escalation_threshold` settings
+  field was effectively dead). Effect: with an `ANTHROPIC_API_KEY` set, every
+  answer whose retrieval confidence was < 0.70 escalated to Claude regardless of
+  the configured `.env` value. `create_app` now passes
+  `settings.escalation_threshold` and `settings.escalation_max_tokens` into the
+  policy, so the documented `.env` knobs actually take effect.
+  (`intelligence_core/server_base.py`)
+
 ### Added
 - **`embed_backend` + `embed_model` in `/health`** — both the shared RAG server
   (`intelligence_core/server_base.py`) and the Proposal server now report the
