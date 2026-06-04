@@ -32,8 +32,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   preserve v0.9.1 behaviour (zero breaking changes).
 
 ### Changed
-- `intelligence_core/server_base.py`: `/api/v1/query` emits a structured event +
-  updates metrics on every response path (best-effort, never breaks a request).
+- `intelligence_core/server_base.py`: `/api/v1/query` **and** `/api/v1/stream`
+  emit a structured event + update metrics on every response path (RAG, agent,
+  skill — best-effort, never breaks a request). Streaming events fire once the
+  SSE response is fully generated so streamed queries are counted in `/metrics`.
 - `CodeIntelligence/embed_chunks.py`, `DocIntelligence/embed_docs.py`,
   `ProposalIntelligence/embed_qa.py`: emit an ingestion event when done.
 - `.env.example`: documents `IS_LOG_LEVEL`, `IS_LOG_FORMAT`, `IS_METRICS_ENABLED`.
@@ -46,12 +48,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **API Bearer-token authentication** (`IS_AUTH_ENABLED` / `IS_API_KEY`): when
   `IS_AUTH_ENABLED=true`, all `/api/v1/*` endpoints require the header
   `Authorization: Bearer <IS_API_KEY>`.  `/health` and `/` remain public.
-  Returns `{"detail":"Unauthorized"}` with HTTP 401 on missing/wrong token.
+  Returns `{"error":"invalid_api_key"}` with HTTP 403 on missing/wrong token.
 - New module `intelligence_core/auth.py` — pure ASGI middleware (no response
   buffering, SSE streaming unaffected) + `add_auth_middleware()` helper +
-  `warn_if_key_missing()` startup warning.
+  `verify_auth_config()` (refuses to start with `AuthConfigError` when auth is
+  enabled but `IS_API_KEY` is empty) + `auth_headers()` (returns the right
+  `Authorization` header for inter-module calls, empty dict when auth is off).
 - `IS_AUTH_ENABLED=false` default → zero breaking changes vs v0.9.0.
-- Boot warning logged when `IS_AUTH_ENABLED=true` and `IS_API_KEY` is empty.
 
 ### Changed
 - `intelligence_core/server_base.py`, `SkillIntelligence/skill_server.py`,

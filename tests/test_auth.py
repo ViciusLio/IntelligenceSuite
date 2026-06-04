@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _build_client(monkeypatch, *, auth_enabled: bool, api_key: str) -> TestClient:
@@ -89,34 +88,84 @@ class TestAuthEnabledCorrectKey:
 # ── auth enabled, wrong / missing key ────────────────────────────────────────
 
 class TestAuthEnabledRejections:
-    def test_missing_header_returns_401(self, monkeypatch):
+    def test_missing_header_returns_403(self, monkeypatch):
         c = _build_client(monkeypatch, auth_enabled=True, api_key="s3cr3t")
-        assert c.get("/api/v1/data").status_code == 401
+        assert c.get("/api/v1/data").status_code == 403
 
-    def test_wrong_token_returns_401(self, monkeypatch):
+    def test_wrong_token_returns_403(self, monkeypatch):
         c = _build_client(monkeypatch, auth_enabled=True, api_key="s3cr3t")
         resp = c.get("/api/v1/data", headers={"Authorization": "Bearer wrong"})
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
-    def test_bare_key_without_bearer_prefix_returns_401(self, monkeypatch):
+    def test_bare_key_without_bearer_prefix_returns_403(self, monkeypatch):
         c = _build_client(monkeypatch, auth_enabled=True, api_key="s3cr3t")
         resp = c.get("/api/v1/data", headers={"Authorization": "s3cr3t"})
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
-    def test_401_json_body(self, monkeypatch):
+    def test_403_json_body(self, monkeypatch):
         c = _build_client(monkeypatch, auth_enabled=True, api_key="s3cr3t")
         resp = c.get("/api/v1/data")
-        assert resp.status_code == 401
-        assert resp.json() == {"detail": "Unauthorized"}
+        assert resp.status_code == 403
+        assert resp.json() == {"error": "invalid_api_key"}
 
-    def test_empty_api_key_rejects_everything(self, monkeypatch):
-        c = _build_client(monkeypatch, auth_enabled=True, api_key="")
-        resp = c.get("/api/v1/data", headers={"Authorization": "Bearer "})
-        assert resp.status_code == 401
 
-    def test_empty_api_key_even_with_empty_bearer(self, monkeypatch):
-        c = _build_client(monkeypatch, auth_enabled=True, api_key="")
-        assert c.get("/api/v1/data").status_code == 401
+# ── refuse to start when auth enabled but no key ─────────────────────────────
+
+class TestRefuseToStart:
+    def test_build_raises_when_auth_enabled_and_key_empty(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", True)
+        monkeypatch.setattr(settings, "is_api_key", "")
+        from intelligence_core.auth import AuthConfigError, verify_auth_config
+        with pytest.raises(AuthConfigError):
+            verify_auth_config()
+
+    def test_add_middleware_raises_when_key_empty(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", True)
+        monkeypatch.setattr(settings, "is_api_key", "")
+        from intelligence_core.auth import AuthConfigError, add_auth_middleware
+        with pytest.raises(AuthConfigError):
+            add_auth_middleware(FastAPI())
+
+    def test_no_raise_when_key_present(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", True)
+        monkeypatch.setattr(settings, "is_api_key", "s3cr3t")
+        from intelligence_core.auth import verify_auth_config
+        verify_auth_config()  # must not raise
+
+    def test_no_raise_when_auth_disabled(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", False)
+        monkeypatch.setattr(settings, "is_api_key", "")
+        from intelligence_core.auth import verify_auth_config
+        verify_auth_config()  # must not raise
+
+
+# ── auth_headers helper ──────────────────────────────────────────────────────
+
+class TestAuthHeaders:
+    def test_returns_bearer_when_enabled_with_key(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", True)
+        monkeypatch.setattr(settings, "is_api_key", "s3cr3t")
+        from intelligence_core.auth import auth_headers
+        assert auth_headers() == {"Authorization": "Bearer s3cr3t"}
+
+    def test_empty_when_auth_disabled(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", False)
+        monkeypatch.setattr(settings, "is_api_key", "s3cr3t")
+        from intelligence_core.auth import auth_headers
+        assert auth_headers() == {}
+
+    def test_empty_when_enabled_but_no_key(self, monkeypatch):
+        from intelligence_core.config import settings
+        monkeypatch.setattr(settings, "is_auth_enabled", True)
+        monkeypatch.setattr(settings, "is_api_key", "")
+        from intelligence_core.auth import auth_headers
+        assert auth_headers() == {}
 
 
 # ── warn_if_key_missing ───────────────────────────────────────────────────────
@@ -126,8 +175,9 @@ class TestWarnIfKeyMissing:
         from intelligence_core.config import settings
         monkeypatch.setattr(settings, "is_auth_enabled", False)
         monkeypatch.setattr(settings, "is_api_key", "")
-        from intelligence_core.auth import warn_if_key_missing
         import logging
+
+        from intelligence_core.auth import warn_if_key_missing
         with caplog.at_level(logging.WARNING, logger="intelligence_core.auth"):
             warn_if_key_missing()
         assert "IS_API_KEY" not in caplog.text
@@ -136,8 +186,9 @@ class TestWarnIfKeyMissing:
         from intelligence_core.config import settings
         monkeypatch.setattr(settings, "is_auth_enabled", True)
         monkeypatch.setattr(settings, "is_api_key", "")
-        from intelligence_core.auth import warn_if_key_missing
         import logging
+
+        from intelligence_core.auth import warn_if_key_missing
         with caplog.at_level(logging.WARNING, logger="intelligence_core.auth"):
             warn_if_key_missing()
         assert "IS_API_KEY" in caplog.text
@@ -146,8 +197,9 @@ class TestWarnIfKeyMissing:
         from intelligence_core.config import settings
         monkeypatch.setattr(settings, "is_auth_enabled", True)
         monkeypatch.setattr(settings, "is_api_key", "somekey")
-        from intelligence_core.auth import warn_if_key_missing
         import logging
+
+        from intelligence_core.auth import warn_if_key_missing
         with caplog.at_level(logging.WARNING, logger="intelligence_core.auth"):
             warn_if_key_missing()
         assert "IS_API_KEY" not in caplog.text

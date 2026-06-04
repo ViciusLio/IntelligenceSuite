@@ -850,6 +850,60 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 ---
 
+## Multi-project support
+
+Run several isolated knowledge bases from one installation. Set `IS_PROJECT` to
+namespace **every** ChromaDB collection and state directory by project — useful
+to keep separate clients, teams, or environments apart on the same machine.
+
+```env
+IS_PROJECT=acme    # default "default" → identical to the v0.8.x layout
+```
+
+| Concern | `IS_PROJECT` unset (`default`) | `IS_PROJECT=acme` |
+|---|---|---|
+| ChromaDB collections | `code_intelligence`, `doc_intelligence`, … | `acme_code_intelligence`, `acme_doc_intelligence`, … |
+| State directories | `~/.intelligence_suite/<chroma\|graph\|eval\|skill_sessions>/` | `~/.intelligence_suite/acme/<chroma\|graph\|eval\|skill_sessions>/` |
+
+Collection names and paths are resolved at call time by
+`intelligence_core/paths.py` (single source of truth). Switching projects is just
+a matter of changing `IS_PROJECT` and re-running the ingest commands — nothing
+leaks between projects. The default value reproduces the exact pre-0.9.0 layout,
+so existing installs keep working with **zero migration**.
+
+---
+
+## Authentication
+
+Optional Bearer-token auth across **all** servers. Disabled by default → behaves
+exactly like v0.8.x. Enable it to require a shared API key on every `/api/v1/*`
+endpoint.
+
+```env
+IS_AUTH_ENABLED=true                 # default false
+IS_API_KEY=your-long-random-secret   # required when auth is enabled
+```
+
+```bash
+# With auth enabled, protected calls need the header:
+curl -H "Authorization: Bearer your-long-random-secret" \
+     -X POST http://localhost:8080/api/v1/query \
+     -d '{"question":"how does retrieval work?"}'
+```
+
+- **Public paths** stay open without a token: `/` (UI), `/health` (launcher
+  poller), `/docs`, `/redoc`, `/openapi.json`.
+- A missing or wrong token on a protected path → **HTTP 403** with body
+  `{"error":"invalid_api_key"}`.
+- If `IS_AUTH_ENABLED=true` but `IS_API_KEY` is empty, the server **refuses to
+  start** (`AuthConfigError`) instead of silently rejecting every request.
+- The middleware is pure ASGI, so **SSE streaming is never buffered or broken**.
+- For inter-module calls, `intelligence_core.auth.auth_headers()` returns the
+  right `Authorization` header (empty dict when auth is off), so callers work
+  the same regardless of configuration.
+
+---
+
 ## Observability
 
 Structured logging and in-memory metrics, **stdlib only** — no extra dependency,
@@ -866,8 +920,9 @@ IS_LOG_LEVEL=INFO     # DEBUG | INFO | WARNING | ERROR   (default INFO)
 IS_LOG_FORMAT=json    # json (default) | text            (text = dev-friendly)
 ```
 
-One `query` event is emitted per `/api/v1/query` call, and one `ingestion` event
-at the end of each embed run (`ci-embed`, `di-embed`, `pi-embed`). Example:
+One `query` event is emitted per `/api/v1/query` **and** `/api/v1/stream` call
+(streaming events fire once the response is fully sent), and one `ingestion`
+event at the end of each embed run (`ci-embed`, `di-embed`, `pi-embed`). Example:
 
 ```json
 {"ts":"2026-06-04T10:12:03Z","level":"INFO","logger":"intelligence_suite","msg":"query","event":"query","module":"code","project":"default","intent":"rag","question_length":42,"top_k":5,"confidence":0.81,"escalated":false,"backend":"ollama","latency_ms":128.4}

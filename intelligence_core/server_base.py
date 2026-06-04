@@ -439,6 +439,26 @@ def create_app(
     @app.post("/api/v1/stream")
     async def stream_query(req: QueryRequest):
         from intelligence_core.config import settings
+        t0 = time.perf_counter()
+
+        def _log_stream(intent: str, confidence: float, escalated: bool, backend: str) -> None:
+            """Emit one structured query event (metadata only) + update metrics.
+
+            Called once the SSE response has been fully generated so streaming
+            queries are counted in /metrics alongside non-streaming ones.
+            """
+            from intelligence_core.observability import log_query_event
+            log_query_event(
+                module=module,
+                project=getattr(settings, "is_project", "default"),
+                intent=intent,
+                question_length=len(req.question),
+                top_k=req.top_k,
+                confidence=confidence,
+                escalated=escalated,
+                backend=backend,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
 
         # ── Intent routing ────────────────────────────────────────────────────
         if settings.intent_routing:
@@ -469,6 +489,7 @@ def create_app(
                             yield f"data: {json.dumps({'type': 'token', 'token': word + ' '})}\n\n"
                         yield f"data: {json.dumps({'type': 'meta', 'confidence': round(intent.confidence, 4), 'backend': _llm.backend_name, 'escalated': False, 'intent': 'agent', 'tools_used': agent_tools})}\n\n"
                         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        _log_stream("agent", intent.confidence, False, _llm.backend_name)
 
                     return StreamingResponse(
                         agent_stream(),
@@ -533,6 +554,7 @@ def create_app(
                             meta["session_id"] = session_id
                         yield f"data: {json.dumps(meta)}\n\n"
                         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        _log_stream("skill", intent.confidence, False, _llm.backend_name)
 
                     return StreamingResponse(
                         skill_stream(),
@@ -573,6 +595,7 @@ def create_app(
                 msg = "No relevant documents found. Try re-indexing or rephrasing the query."
                 yield f"data: {json.dumps({'type': 'token', 'token': msg})}\n\n"
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                _log_stream("rag", confidence, escalated, answer_llm.backend_name)
                 return
 
             # 3. Stream tokens
@@ -585,6 +608,7 @@ def create_app(
             # 4. Done + meta
             yield f"data: {json.dumps({'type': 'meta', 'confidence': round(confidence, 4), 'backend': answer_llm.backend_name, 'escalated': escalated})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            _log_stream("rag", confidence, escalated, answer_llm.backend_name)
 
         return StreamingResponse(
             generate(),
