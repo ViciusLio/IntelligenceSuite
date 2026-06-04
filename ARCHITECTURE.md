@@ -38,7 +38,7 @@ Max 400 righe per file. Se cresce oltre, sta facendo troppe cose.
 ```json
 {
   "id":         "domain::type::locator",
-  "domain":     "code | doc | api | data | mentor",
+  "domain":     "code | doc | api | data | mentor | qa",
   "type":       "function | class | section | table | practice | onboarding_step | ...",
   "text":       "testo human-readable, autocontenuto",
   "source":     "path/relativo/file.ext",
@@ -86,6 +86,49 @@ in-memory thread-safe. Un evento `query` per ogni chiamata a `/api/v1/query` e
 domande/risposte nei log** — solo metadati (es. la *lunghezza* della domanda).
 `GET /metrics` è opt-in: assente (404) finché `IS_METRICS_ENABLED=true`.
 
+## Ingestione on-demand & Export (superficie runtime)
+
+Due capacità opt-in che affiancano i CLI offline (`*-parse`/`*-ingest` +
+`*-embed`) con una superficie HTTP, **senza** sostituirli: stessi parser, stessa
+idempotenza via checksum in-store. Default invariati (zero breaking changes).
+
+**Ingestione on-demand (`IS_INGEST_ENABLED` / `IS_INGEST_ROOT` / `IS_INGEST_MAX_MB`).**
+`intelligence_core/ingestion.py` è il motore; `intelligence_core/ingest_api.py`
+monta le route (assenti → 404 finché `IS_INGEST_ENABLED=true`).
+
+| Route | Funzione |
+|---|---|
+| `POST /api/v1/ingest/path` | indicizza un path lato server, confinato a `IS_INGEST_ROOT` (disabilitata finché la variabile è vuota) |
+| `POST /api/v1/ingest/upload` | indicizza file caricati (richiede l'extra `[ingest]` → `python-multipart`; cap per-file `IS_INGEST_MAX_MB`, default 50 → 413 oltre soglia) |
+| `GET /api/v1/ingest/status/{job_id}` | stato del job asincrono |
+
+- **Async**: ogni richiesta torna un `job_id`; una `JobRegistry` thread-safe
+  in-memory traccia i job su thread daemon, interrogabili via polling.
+- **Idempotente**: re-ingestare contenuto invariato non embedda nulla
+  (match checksum); scansioni di path completi fanno pruning degli orfani.
+- **Best-effort**: un singolo file illeggibile viene loggato e saltato,
+  mai fatale.
+- **Sicurezza path**: `path` ingest confinato a `IS_INGEST_ROOT`; upload
+  limitato da `IS_INGEST_MAX_MB`.
+
+Moduli esposti: `code`, `doc`, `mentor`, `proposal`.
+
+**Export (`POST /api/v1/export`).**
+`intelligence_core/export.py` (renderer) + `intelligence_core/export_api.py`
+(route, montata sempre). Documento generico
+`{format, title, sections:[{heading, body, sources}]}` riusabile sia dalla chat
+(messaggi conversazione) sia da Proposal (Q&A). Risposta come allegato via
+`Content-Disposition`.
+
+| Formato | Dipendenza | Errore se assente |
+|---|---|---|
+| `markdown` | solo stdlib | — |
+| `html` | solo stdlib (escaped, standalone) | — |
+| `pdf` | extra `[export]` → `fpdf2` | `503` |
+
+Formato sconosciuto → `400`. Solo il PDF degrada (503) quando `[export]` non è
+installato; Markdown/HTML sono sempre disponibili.
+
 ## Architettura MentorIntelligence
 
 ```
@@ -117,8 +160,11 @@ mentor_server.py          ← endpoint HTTP: /onboard /ask /progress /reset
 
 ## Roadmap domini
 
-- ✅ `CodeIntelligence` — codice sorgente
-- ✅ `DocIntelligence`  — documenti aziendali
-- ✅ `MentorIntelligence` — onboarding adattivo
-- 📋 `APIIntelligence`  — spec OpenAPI, Postman
-- 📋 `DataIntelligence` — schemi DB, query, pipeline
+- ✅ `CodeIntelligence`     — codice sorgente
+- ✅ `DocIntelligence`      — documenti aziendali
+- ✅ `MentorIntelligence`   — onboarding adattivo
+- ✅ `SkillIntelligence`    — registry/sessioni di competenze
+- ✅ `ProposalIntelligence` — risposte a gare/RFP da knowledge base Q&A
+- 🧪 `AgentIntelligence`    — orchestrazione agentica (stub/sperimentale)
+- 📋 `APIIntelligence`      — spec OpenAPI, Postman
+- 📋 `DataIntelligence`     — schemi DB, query, pipeline
