@@ -1,12 +1,14 @@
 """Embed doc chunks from JSONL and load into ChromaDB."""
 
 from __future__ import annotations
+
 import argparse
+import time
 from pathlib import Path
 
 from intelligence_core.chunk import chunk_from_jsonl, chunk_to_jsonl
-from intelligence_core.embedder import get_embedder
 from intelligence_core.config import settings
+from intelligence_core.embedder import get_embedder
 
 COLLECTION_NAME = "doc_intelligence"  # base name; runtime uses paths.collection_name("doc")
 
@@ -42,6 +44,7 @@ def embed_docs(
         collection_name:  ChromaDB collection (default: ``doc_intelligence``).
     """
     from intelligence_core import paths
+    t0 = time.perf_counter()
     collection_name = collection_name or paths.collection_name("doc")
     output_file = output_file or input_file
     embedder    = get_embedder()
@@ -101,6 +104,17 @@ def embed_docs(
     if to_embed:
         store.add(to_embed)
     print(f"ChromaDB '{collection_name}': {store.count()} total chunks indexed")
+
+    from intelligence_core.observability import log_ingestion_event
+    log_ingestion_event(
+        module="doc",
+        project=getattr(settings, "is_project", "default"),
+        total=len(chunks),
+        new=len(to_embed),
+        skipped=len(chunks) - len(to_embed),
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        backend=settings.embed_backend,
+    )
 
     return chunks
 

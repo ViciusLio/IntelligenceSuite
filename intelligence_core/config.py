@@ -133,6 +133,17 @@ class Settings(BaseSettings):
     is_auth_enabled: bool = False
     is_api_key:      str  = ""
 
+    # ── Observability (v0.9.2) ────────────────────────────────────────────────
+    # Structured logging + opt-in metrics. All default to current behavior.
+    #   IS_LOG_LEVEL    standard logging level (default INFO)
+    #   IS_LOG_FORMAT   "json" (default, one JSON object per line) | "text"
+    #   IS_METRICS_ENABLED=false (default) → GET /metrics returns 404 (no route);
+    #                     true → GET /metrics returns in-memory counters as JSON.
+    # Query/answer text is NEVER logged — only metadata (e.g. question length).
+    is_log_level:       str  = "INFO"
+    is_log_format:      str  = "json"
+    is_metrics_enabled: bool = False
+
     # ── Multi-project namespacing ─────────────────────────────────────────────
     # Set IS_PROJECT to isolate collections and state dirs per project.
     # Default ("default") replicates the exact single-project behavior of v0.8.x.

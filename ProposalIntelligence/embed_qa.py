@@ -12,6 +12,7 @@ multilingue, senza disturbare le collezioni code/doc/mentor globali.
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 
 from intelligence_core.chunk import chunk_from_jsonl, chunk_to_jsonl
@@ -31,6 +32,7 @@ def embed_qa(
     incremental: bool = False,
     collection_name: str = COLLECTION_NAME,
 ) -> list[dict]:
+    t0 = time.perf_counter()
     output_file = output_file or input_file
     embedder = get_module_embedder("pi")
 
@@ -76,6 +78,17 @@ def embed_qa(
     if to_embed:
         store.add(to_embed)
     print(f"ChromaDB '{collection_name}': {store.count()} coppie totali indicizzate")
+
+    from intelligence_core.observability import log_ingestion_event
+    log_ingestion_event(
+        module="qa",
+        project=getattr(settings, "is_project", "default"),
+        total=len(chunks),
+        new=len(to_embed),
+        skipped=len(chunks) - len(to_embed),
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        backend=settings.pi_embed_backend or settings.embed_backend,
+    )
 
     return chunks
 

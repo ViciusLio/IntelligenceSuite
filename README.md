@@ -850,6 +850,57 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 ---
 
+## Observability
+
+Structured logging and in-memory metrics, **stdlib only** — no extra dependency,
+opt-in, zero impact on the default behaviour.
+
+### Structured logging
+
+The suite logs **one JSON object per line to stdout** by default — ready to ship
+to any log collector (Loki, ELK, CloudWatch, …). Switch to a human-readable
+format for local development.
+
+```env
+IS_LOG_LEVEL=INFO     # DEBUG | INFO | WARNING | ERROR   (default INFO)
+IS_LOG_FORMAT=json    # json (default) | text            (text = dev-friendly)
+```
+
+One `query` event is emitted per `/api/v1/query` call, and one `ingestion` event
+at the end of each embed run (`ci-embed`, `di-embed`, `pi-embed`). Example:
+
+```json
+{"ts":"2026-06-04T10:12:03Z","level":"INFO","logger":"intelligence_suite","msg":"query","event":"query","module":"code","project":"default","intent":"rag","question_length":42,"top_k":5,"confidence":0.81,"escalated":false,"backend":"ollama","latency_ms":128.4}
+```
+
+> **Privacy by design:** the text of questions and answers is **never** logged —
+> only metadata such as the question *length*. Bodies are potentially sensitive.
+
+### Metrics endpoint
+
+Opt-in per-process counters, exposed as JSON. Disabled by default: when off the
+route does not exist (`404`).
+
+```env
+IS_METRICS_ENABLED=true   # default false → GET /metrics returns 404
+```
+
+```bash
+curl http://localhost:8080/metrics
+{
+  "queries_total": 128,
+  "queries_escalated": 7,
+  "avg_latency_ms": 142.6,
+  "avg_confidence": 0.78,
+  "uptime_seconds": 3601.2
+}
+```
+
+Counters are in-memory and thread-safe; they reset when the process restarts.
+The endpoint is registered on all six servers.
+
+---
+
 ## Design principles
 
 | Principle | Implementation |

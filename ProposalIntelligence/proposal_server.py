@@ -52,6 +52,9 @@ def build_app() -> FastAPI:
     add_auth_middleware(app)
     warn_if_key_missing()
 
+    from intelligence_core.observability import add_metrics_endpoint
+    add_metrics_endpoint(app)
+
     from intelligence_core import paths
     store = ChromaStore(collection_name=paths.collection_name("qa"),
                         persist_dir=str(paths.chroma_dir()))

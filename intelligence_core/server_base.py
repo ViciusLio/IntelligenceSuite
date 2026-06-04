@@ -1,20 +1,21 @@
 """FastAPI app base — shared by CodeIntelligence, DocIntelligence, MentorIntelligence."""
 
 from __future__ import annotations
+
 import asyncio
 import json
+import logging
 import threading
 import time
-import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from intelligence_core.retriever import Retriever
 from intelligence_core.escalation import EscalationPolicy
 from intelligence_core.llm import LLMProvider, get_llm_provider
+from intelligence_core.retriever import Retriever
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +218,10 @@ def create_app(
     add_auth_middleware(app)
     warn_if_key_missing()
 
+    # ── Observability: opt-in GET /metrics (no-op unless IS_METRICS_ENABLED) ──
+    from intelligence_core.observability import add_metrics_endpoint
+    add_metrics_endpoint(app)
+
     # ── Chat UI ───────────────────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def chat_ui():
@@ -242,9 +247,25 @@ def create_app(
         from intelligence_core.config import settings
         t0 = time.perf_counter()
 
+        def _observe(resp: QueryResponse) -> QueryResponse:
+            """Emit one structured query event (metadata only) + update metrics."""
+            from intelligence_core.observability import log_query_event
+            log_query_event(
+                module=module,
+                project=getattr(settings, "is_project", "default"),
+                intent=resp.intent,
+                question_length=len(req.question),
+                top_k=req.top_k,
+                confidence=resp.confidence,
+                escalated=resp.escalated,
+                backend=resp.backend,
+                latency_ms=resp.latency_ms,
+            )
+            return resp
+
         # ── Intent routing (transparent to the caller) ────────────────────────
         if settings.intent_routing:
-            from intelligence_core.intent import classify_intent, IntentLevel
+            from intelligence_core.intent import IntentLevel, classify_intent
             try:
                 intent = classify_intent(req.question, registry=_get_skill_registry())
             except Exception as exc:
@@ -262,7 +283,7 @@ def create_app(
                         settings.agent_max_iterations,
                         settings.thinking_mode,
                     )
-                    return QueryResponse(
+                    return _observe(QueryResponse(
                         answer=result["answer"],
                         sources=[],
                         confidence=round(intent.confidence, 4),
@@ -270,7 +291,7 @@ def create_app(
                         backend=_llm.backend_name,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 1),
                         intent="agent",
-                    )
+                    ))
                 except Exception as exc:
                     logger.warning("Agent run fallita, fallback RAG: %s", exc)
 
@@ -291,7 +312,7 @@ def create_app(
                         )
                         if "environment" in missing:
                             q_text += " (es: staging o production)"
-                        return QueryResponse(
+                        return _observe(QueryResponse(
                             answer=q_text,
                             sources=[],
                             confidence=round(intent.confidence, 4),
@@ -299,7 +320,7 @@ def create_app(
                             backend=_llm.backend_name,
                             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
                             intent="skill",
-                        )
+                        ))
 
                 # Start skill session and return first step
                 executor_obj = _get_skill_executor()
@@ -316,7 +337,7 @@ def create_app(
                                 answer += "\n\n_Fonti: " + ", ".join(
                                     s["source"] for s in first_step.sources if s.get("source")
                                 ) + "_"
-                            return QueryResponse(
+                            return _observe(QueryResponse(
                                 answer=answer,
                                 sources=first_step.sources,
                                 confidence=round(intent.confidence, 4),
@@ -326,7 +347,7 @@ def create_app(
                                 intent="skill",
                                 session_id=session_id,
                                 is_last_step=first_step.is_last_step,
-                            )
+                            ))
                         except Exception as exc:
                             logger.warning("Skill session start fallita, fallback RAG: %s", exc)
 
@@ -361,7 +382,7 @@ def create_app(
             else answer_llm.generate(req.question, context)
         )
 
-        return QueryResponse(
+        return _observe(QueryResponse(
             answer=answer,
             sources=sources,
             confidence=round(confidence, 4),
@@ -369,7 +390,7 @@ def create_app(
             backend=answer_llm.backend_name,
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
             intent="rag",
-        )
+        ))
 
     # ── Skill next-step endpoint (available on all modules) ───────────────────
     @app.post("/api/v1/skill/next")
@@ -421,7 +442,7 @@ def create_app(
 
         # ── Intent routing ────────────────────────────────────────────────────
         if settings.intent_routing:
-            from intelligence_core.intent import classify_intent, IntentLevel
+            from intelligence_core.intent import IntentLevel, classify_intent
             try:
                 intent = classify_intent(req.question, registry=_get_skill_registry())
             except Exception as exc:

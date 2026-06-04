@@ -10,6 +10,36 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.9.2] — 2026-06-04
+
+### Added
+- **Structured observability** — new module `intelligence_core/observability.py`
+  (stdlib only, no new dependency):
+  - Centralized logger emitting **one JSON object per line to stdout** by default
+    (`IS_LOG_FORMAT=json`), with a human-readable `text` fallback for local dev.
+    Level via `IS_LOG_LEVEL` (default `INFO`).
+  - One structured `query` event per call to `/api/v1/query`, with metadata only:
+    module, project, intent, question length, top_k, confidence, escalated,
+    backend, latency_ms. **Question/answer text is never logged.**
+  - One structured `ingestion` event at the end of each embed run (`ci-embed`,
+    `di-embed`, `pi-embed`): total / new / skipped chunks, duration, backend.
+  - In-memory, thread-safe `MetricsCollector` (counters reset on restart).
+- **Opt-in `GET /metrics` endpoint** via `IS_METRICS_ENABLED` (default `false`):
+  when disabled the route does not exist (404); when enabled it returns
+  in-memory counters as JSON (queries total/escalated, avg latency, avg
+  confidence, uptime). Registered on all six servers.
+- `IS_LOG_LEVEL`, `IS_LOG_FORMAT`, `IS_METRICS_ENABLED` settings — all defaults
+  preserve v0.9.1 behaviour (zero breaking changes).
+
+### Changed
+- `intelligence_core/server_base.py`: `/api/v1/query` emits a structured event +
+  updates metrics on every response path (best-effort, never breaks a request).
+- `CodeIntelligence/embed_chunks.py`, `DocIntelligence/embed_docs.py`,
+  `ProposalIntelligence/embed_qa.py`: emit an ingestion event when done.
+- `.env.example`: documents `IS_LOG_LEVEL`, `IS_LOG_FORMAT`, `IS_METRICS_ENABLED`.
+
+---
+
 ## [0.9.1] — 2026-06-04
 
 ### Added
