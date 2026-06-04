@@ -10,6 +10,36 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.10.0] — 2026-06-04
+
+### Added
+- **Deterministic KPI tests in CI** — retrieval quality is now verified on every
+  commit instead of being skipped when no live index exists:
+  - Versioned **synthetic fixtures** in `tests/fixtures/` (`kpi_code_chunks.json`,
+    `kpi_doc_chunks.json`, `kpi_qa.json`) — realistic but non-confidential.
+  - `tests/conftest.py`: a dependency-free `HashingEmbedder` (bag-of-words →
+    cosine similarity = lexical overlap) plus fixtures that mount a **disk-less,
+    in-memory ChromaDB** and return a ready `Retriever`. Collection naming reuses
+    the Fase-1 `paths.collection_name(...)` (classic names for the default
+    project). No Ollama, no network, no optional extra, no disk.
+  - `tests/test_kpi.py`: Hit@1 / Hit@5 / MRR on known chunks, confidence always
+    in `[0,1]`, sequential ranks, generous CI latency ceiling. These **fail for
+    real** if the retriever is broken.
+- **pytest markers** (`pyproject.toml`): `kpi` (retrieval quality on in-memory
+  store — runs in CI, never skips) and `slow` (needs a real embedding backend /
+  network — exclude with `pytest -m "not slow"`).
+- **`CI.md`** at the repo root — how to run the full suite, exclude slow tests,
+  run only the KPI tests, and why `ci-eval` stays out of standard CI.
+
+### Changed
+- `intelligence_core/store.py`: `ChromaStore` accepts `persist_dir=":memory:"` to
+  use an ephemeral, disk-less client (used by the KPI fixtures). Any other value
+  persists exactly as before — zero behaviour change for existing callers.
+- `README.md`: "Test suite" section documents the markers and the in-memory KPI
+  tests.
+
+---
+
 ## [0.9.2] — 2026-06-04
 
 ### Added

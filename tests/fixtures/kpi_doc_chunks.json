@@ -1,0 +1,82 @@
+[
+  {
+    "id": "doc::section::APIRef.Authentication",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Authentication (in api_reference.pdf)\nPath: API Reference > Authentication\n---\nObtain an API token through the authentication endpoint using your client credentials. POST the client id and client secret to receive a bearer token.",
+    "source": "api_reference.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 2, "page_end": 3, "heading_path": ["API Reference", "Authentication"], "word_count": 40},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::APIRef.RateLimiting",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Rate Limiting (in api_reference.pdf)\nPath: API Reference > Rate Limiting\n---\nThe Team plan allows one thousand requests per minute. Exceeding the rate limit returns HTTP 429 with a retry-after header.",
+    "source": "api_reference.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 5, "page_end": 5, "heading_path": ["API Reference", "Rate Limiting"], "word_count": 36},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::DeployProc.Rollback",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Rollback (in deploy_procedure.pdf)\nPath: Deploy Procedure > Rollback\n---\nIf a deploy fails within thirty minutes, roll back immediately to the previous release and open a PagerDuty incident.",
+    "source": "deploy_procedure.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 4, "page_end": 4, "heading_path": ["Deploy Procedure", "Rollback"], "word_count": 34},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::ADR007.Decision",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Decision (in adr_007_vector_store.pdf)\nPath: ADR 007 > Decision\n---\nWe chose pgvector over Pinecone for on-premise data control and to avoid sending embeddings to an external managed service.",
+    "source": "adr_007_vector_store.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 1, "page_end": 2, "heading_path": ["ADR 007", "Decision"], "word_count": 33},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::DeployProc.Prerequisites",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Prerequisites (in deploy_procedure.pdf)\nPath: Deploy Procedure > Prerequisites\n---\nMandatory prerequisites before a deploy: passing tests, an approved code review, and a green continuous integration pipeline.",
+    "source": "deploy_procedure.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 2, "page_end": 2, "heading_path": ["Deploy Procedure", "Prerequisites"], "word_count": 30},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::APIRef.SLA",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: SLA (in api_reference.pdf)\nPath: API Reference > Service Level Agreement\n---\nThe service level agreement guarantees a P99 latency under one second, even when a query is escalated to the cloud backend.",
+    "source": "api_reference.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 9, "page_end": 9, "heading_path": ["API Reference", "SLA"], "word_count": 35},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::Security.Encryption",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Encryption (in security_overview.pdf)\nPath: Security Overview > Encryption\n---\nAll data is encrypted at rest using AES-256 and encrypted in transit over TLS 1.3 between every service.",
+    "source": "security_overview.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 6, "page_end": 7, "heading_path": ["Security Overview", "Encryption"], "word_count": 31},
+    "checksum": ""
+  },
+  {
+    "id": "doc::section::Backup.Schedule",
+    "domain": "doc",
+    "type": "section",
+    "text": "Section: Schedule (in backup_policy.pdf)\nPath: Backup Policy > Schedule\n---\nThe backup schedule runs nightly incremental backups, retained for thirty days, with a weekly full snapshot.",
+    "source": "backup_policy.pdf",
+    "language": "pdf",
+    "metadata": {"page_start": 3, "page_end": 3, "heading_path": ["Backup Policy", "Schedule"], "word_count": 28},
+    "checksum": ""
+  }
+]

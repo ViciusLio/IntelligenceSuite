@@ -1019,8 +1019,30 @@ non-source directories.
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
-# 258 passed, 5 skipped (KPI — require indexed store), 0 failed
 ```
+
+The suite runs **offline and deterministically** — no Ollama, no network, no
+optional extra, no disk state required.
+
+**Retrieval-quality (KPI) tests run in CI**, they no longer skip. They mount a
+disk-less, in-memory ChromaDB loaded with versioned synthetic fixtures
+(`tests/fixtures/`) and assert Hit@1 / Hit@5 / MRR on known chunks, so a broken
+retriever fails the build for real.
+
+Two pytest markers (declared in `pyproject.toml`) let you slice the suite:
+
+```bash
+pytest -m kpi              # only the deterministic retrieval-quality tests
+pytest -m "not slow"       # everything except tests needing a real backend
+```
+
+| Marker | Meaning |
+|---|---|
+| `kpi` | Retrieval quality on an in-memory store. Runs in CI, never skips. |
+| `slow` | Needs a real embedding backend (Ollama / sentence-transformers) or network. |
+
+`ci-eval` (RAGAS) needs a live LLM **and** a populated store, so it stays out of
+standard CI. See [`CI.md`](CI.md) for the full reference.
 
 ---
 

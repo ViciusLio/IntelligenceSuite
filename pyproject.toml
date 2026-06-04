@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intelligence-suite"
-version = "0.9.2"
+version = "0.10.0"
 description = "Modular knowledge retrieval suite: code, docs, APIs — all on-premise"
 readme = "README.md"
 license = "MIT"
@@ -115,3 +115,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "kpi: deterministic retrieval-quality tests on an in-memory store (run in CI)",
+    "slow: tests requiring a real embedding backend / network (excluded in CI)",
+]
