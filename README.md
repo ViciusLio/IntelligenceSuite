@@ -38,7 +38,7 @@ vectors, and stored in **per-domain ChromaDB collections**.
 ```mermaid
 flowchart LR
     SRC["💻 Source code"]   --> P1["Parser<br/>AST · Tree-sitter · regex"]
-    DOC["📄 Documents"]     --> P2["Parser<br/>PDF · DOCX · XLSX · MD"]
+    DOC["📄 Documents"]     --> P2["Parser<br/>PDF · DOCX · XLSX · CSV · MD"]
     PRA["📘 Practices"]     --> P3["Ingest<br/>Markdown sections"]
     P1 --> CH["chunks.jsonl<br/><i>unified schema</i>"]
     P2 --> CH
@@ -53,6 +53,10 @@ flowchart LR
     class P1,P2,P3,CH,EMB proc;
     class DB store;
 ```
+
+> Besides the offline CLIs, the same parse+embed pipeline is also exposed **on demand** over
+> HTTP and from the chat UI — opt-in via `IS_INGEST_ENABLED`. See
+> [On-demand ingestion](#on-demand-ingestion--api--ui) below.
 
 ### 2 · Query — *live, per request*
 
@@ -179,6 +183,8 @@ Once any server is running, open its URL — the chat interface loads instantly.
 - Conversations **persist across page refreshes** (localStorage per module)
 - **Source citations** as chips below each answer (file · type · score)
 - Server status, chunk count, LLM backend displayed live
+- **Export** the conversation to Markdown / HTML / PDF from the top bar
+- **On-demand ingest** panel (when `IS_INGEST_ENABLED`) to index a path or upload files
 - Zero extra dependencies — served directly from the RAG server
 
 ### Or query via REST API
@@ -225,7 +231,7 @@ REST API you can query from any client.
 |---|---|---|
 | `intelligence_core` | Shared layer | Chunk schema, embedder, ChromaDB store, retriever, escalation policy, RAGAS evaluation, dependency graph (GraphRAG) |
 | `CodeIntelligence` | Source code | Python AST + Tree-sitter parsers for TS, Go, Java, Rust (regex fallback), YAML, SQL, MD |
-| `DocIntelligence` | Company docs | PDF (3-level), DOCX, XLSX, TXT ingest pipeline |
+| `DocIntelligence` | Company docs | PDF (3-level), DOCX, XLSX, CSV/TSV, TXT ingest pipeline |
 | `MentorIntelligence` | Onboarding | Adaptive onboarding — profile detection, sessions, cross-domain path |
 | `SkillIntelligence` | Procedures | Step-by-step procedural guidance with cross-domain RAG (code + doc + mentor) |
 | `AgentIntelligence` | Multi-hop agent | ReAct agent with tool calling (search_code/docs/practices, analyze_impact) |
@@ -256,6 +262,12 @@ pip install "intelligence-suite[multilang]"
 
 # Dependency graph + GraphRAG context expansion
 pip install "intelligence-suite[graph]"
+
+# On-demand ingest uploads (POST /api/v1/ingest/upload)
+pip install "intelligence-suite[ingest]"
+
+# Export to PDF (POST /api/v1/export?format=pdf) — Markdown/HTML need no extra
+pip install "intelligence-suite[export]"
 
 # RAGAS evaluation pipeline (ci-eval)
 pip install "intelligence-suite[eval]"
@@ -342,6 +354,7 @@ Ingests company documents across multiple formats with a 3-level PDF parsing str
 | **PDF** | pdfplumber → pytesseract → raw binary | 3-level fallback; heading detection via y-coordinates |
 | **DOCX** | python-docx | Heading + body sections; empty sections preserved |
 | **XLSX** | openpyxl | Sheet-by-sheet tabular chunks |
+| **CSV / TSV** | Built-in (stdlib `csv`) | Delimiter auto-detected; a schema chunk + a row-preview chunk per file |
 | **TXT / MD** | Built-in | Line-based or heading-based split |
 
 ### CLI quickstart
@@ -953,6 +966,76 @@ curl http://localhost:8080/metrics
 
 Counters are in-memory and thread-safe; they reset when the process restarts.
 The endpoint is registered on all six servers.
+
+---
+
+## On-demand ingestion — API + UI
+
+Besides the offline `ci-embed` / `di-embed` / `pi-embed` CLIs, content can be indexed
+**on demand** over HTTP and straight from the chat UI. Opt-in and **off by default** — when
+disabled the routes return `404` and behaviour is identical to before.
+
+```env
+IS_INGEST_ENABLED=true            # default false → routes absent (404), no UI panel
+IS_INGEST_ROOT=/srv/knowledge     # server-side root the path endpoint is confined to
+IS_INGEST_MAX_MB=50               # per-file upload cap (413 on overflow)
+```
+
+The same parse+embed pipeline runs, so indexing stays **idempotent**: chunks are keyed by the
+deterministic `domain::type::locator` ID and re-embedded only when their checksum changed; on a
+full path scan, orphaned chunks are pruned. The heavy work always runs in a **background thread**,
+so the HTTP call returns at once with a `job_id` to poll.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/ingest/path` | POST | Index a server-side path (validated **inside** `IS_INGEST_ROOT`). Body `{path, module?, incremental?}` → `{job_id, status}`. |
+| `/api/v1/ingest/upload` | POST | Index uploaded files (multipart). Per-file cap `IS_INGEST_MAX_MB`. Needs the `[ingest]` extra; absent → route not mounted. |
+| `/api/v1/ingest/status/{job_id}` | GET | Poll a job's status/stats (`queued` → `running` → `done`/`error`); `404` if unknown. |
+
+Each request targets the hosting server's module by default; an optional `module` field can
+retarget to any of `code | doc | mentor | proposal`. `/health` reports `ingest_enabled` so the
+chat UI can show a **"📥 Indicizza contenuti"** panel (server-side path for Code, file upload for
+Doc/Mentor/Proposal) that submits the job and live-polls its status. All routes sit behind the
+same Bearer auth middleware as the rest of the API.
+
+```bash
+curl -H "Content-Type: application/json" \
+     -X POST http://localhost:8081/api/v1/ingest/upload \
+     -F "files=@./report.csv" -F "files=@./spec.pdf"
+# → {"job_id":"…","status":"queued","module":"doc","files":2}
+
+curl http://localhost:8081/api/v1/ingest/status/<job_id>
+# → {"status":"done","stats":{"new":2,"skipped":0,"deleted":0, …}}
+```
+
+---
+
+## Export
+
+Turn a chat conversation or a set of Proposal answers into a **downloadable file** —
+`POST /api/v1/export`, mounted on every module server. Markdown and a standalone HTML page are
+stdlib (always available); **PDF** needs the opt-in `[export]` extra (`fpdf2`).
+
+```bash
+curl -X POST http://localhost:8080/api/v1/export \
+  -H "Content-Type: application/json" \
+  -d '{"format":"markdown","title":"Conversazione",
+       "sections":[{"heading":"Tu","body":"Where is auth handled?"},
+                   {"heading":"Assistant","body":"In auth/jwt.py …",
+                    "sources":[{"source":"auth/jwt.py"}]}]}' \
+  -o conversazione.md
+```
+
+The response is returned as an attachment (`Content-Disposition`) with the right `Content-Type`.
+An unknown `format` → `400`; `format=pdf` without the extra → `503`, while Markdown/HTML keep
+working. In the UI an **"⬇︎ Esporta"** menu (Markdown / HTML / PDF) appears in the chat top bar
+(exports the active conversation) and in the Proposal header (exports the generated answers).
+
+| `format` | Extra | Output |
+|---|---|---|
+| `markdown` | *(none)* | `text/markdown` — title + `##` sections + `_Fonti: …_` |
+| `html` | *(none)* | standalone, escaped `text/html` page |
+| `pdf` | `[export]` | `application/pdf` (via `fpdf2`); `503` if the extra is missing |
 
 ---
 
