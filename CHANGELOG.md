@@ -8,6 +8,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.13.0] — 2026-06-04
+
 ### Added
 - **Export** (SOTTO-FASE D) — `POST /api/v1/export` on every module server (and
   the Proposal server) turns a client-supplied document (a title + sections, e.g.
@@ -41,6 +45,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Tests**: `tests/test_ingest_ui.py` — `/health` exposes `ingest_enabled`
   (RAG + Proposal, on/off) and both HTML templates carry the ingest-panel markers
   (5 tests, offline).
+
+### Docs
+- **README restructured** — clickable table of contents, trimmed non-representative
+  content, updated ingest Mermaid (CLI + on-demand API entry points) and a new
+  "Operational surface — ingest & export" diagram.
+- **ARCHITECTURE.md** — documents the on-demand ingestion & export runtime surface,
+  aligns the domain roadmap with the modules that now exist, adds the `qa` domain.
 
 ### Notes
 - **Zero breaking changes**: the panel is hidden unless `IS_INGEST_ENABLED=true`,
