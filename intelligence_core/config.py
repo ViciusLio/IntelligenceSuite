@@ -144,6 +144,17 @@ class Settings(BaseSettings):
     is_log_format:      str  = "json"
     is_metrics_enabled: bool = False
 
+    # ── Ingestion service (v0.11.0) ───────────────────────────────────────────
+    # On-demand parser+embed via API/UI. All default to current behavior (off).
+    #   IS_INGEST_ENABLED=false (default) → no ingest routes, identical to v0.10.x.
+    #   IS_INGEST_ROOT  empty (default)   → server-side path ingest disabled until
+    #     you set it; when set, ``POST /ingest/path`` accepts only paths *inside*
+    #     this directory (defence against path traversal).
+    #   IS_INGEST_MAX_MB — per-file upload size cap (default 50 MB).
+    is_ingest_enabled: bool = False
+    is_ingest_root:    str  = ""
+    is_ingest_max_mb:  int  = 50
+
     # ── Multi-project namespacing ─────────────────────────────────────────────
     # Set IS_PROJECT to isolate collections and state dirs per project.
     # Default ("default") replicates the exact single-project behavior of v0.8.x.

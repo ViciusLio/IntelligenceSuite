@@ -27,6 +27,11 @@ def _load_parsers():
     except Exception:
         pass
     try:
+        from . import csv_parser
+        _PARSERS.append(csv_parser)
+    except Exception:
+        pass
+    try:
         from . import txt_parser
         _PARSERS.append(txt_parser)
     except Exception:

@@ -10,6 +10,41 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.11.0] — 2026-06-04
+
+### Added
+- **On-demand ingestion service** (`intelligence_core/ingestion.py`) — the engine
+  behind the upcoming ingest API/UI. Parses + embeds either a server-side path or
+  a set of uploaded files for any of the four modules (`code`, `doc`, `mentor`,
+  `proposal`), reusing each module's **existing parsers** and the **in-store
+  checksum idempotency** (only new/changed chunks are embedded; unchanged content
+  is skipped). Highlights:
+  - **Best-effort**: a single unreadable file is logged and skipped, never fatal.
+  - **Async jobs**: thread-safe `JobRegistry` / `IngestJob` (`queued → running →
+    done | error`); `submit()` returns a `job_id` to poll. Mirrors the
+    observability `MetricsCollector` pattern.
+  - **Path safety**: `validate_path()` confines server-side path ingest to
+    `IS_INGEST_ROOT` (defence against path traversal) and is **disabled entirely**
+    until that variable is set.
+  - **Orphan pruning** only on full-directory path scans; uploads (partial sets)
+    never prune.
+- **CSV/TSV parser** (`DocIntelligence/parsers/csv_parser.py`, stdlib-only) —
+  produces a schema *section* chunk + a preview *table* chunk; registered in the
+  Doc parser registry. No new dependency.
+- **Config** (all opt-in, default = current behavior): `IS_INGEST_ENABLED`
+  (default `false`), `IS_INGEST_ROOT` (default empty → path ingest off until set),
+  `IS_INGEST_MAX_MB` (default `50`).
+- **Tests**: `tests/test_ingestion.py` — CSV parsing, upload-mode ingest,
+  idempotency, per-module dispatch (doc/mentor/proposal), `IS_INGEST_ROOT` path
+  safety, orphan pruning, and the async job registry (18 tests, fully offline).
+
+### Notes
+- **Zero breaking changes**: no HTTP routes are added in this release — the
+  service is library-only. API endpoints and UI panels land in later releases,
+  also gated behind `IS_INGEST_ENABLED`.
+
+---
+
 ## [0.10.0] — 2026-06-04
 
 ### Added
