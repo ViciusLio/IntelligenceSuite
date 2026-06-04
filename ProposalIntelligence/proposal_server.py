@@ -74,6 +74,7 @@ def build_app() -> FastAPI:
             "chunks_indexed": store.count(),
             "llm_backend":    get_module_llm_provider("pi").backend_name,
             "default_mode":   settings.proposal_mode,
+            "ingest_enabled": bool(getattr(settings, "is_ingest_enabled", False)),
         }
 
     @app.post("/api/v1/proposal/answer", response_model=AnswerResponse)

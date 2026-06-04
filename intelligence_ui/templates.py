@@ -68,6 +68,11 @@ CHAT_HTML = """<!DOCTYPE html>
 
   <!-- Footer -->
   <div class="px-3 py-3 border-t border-gray-700/60 space-y-1 flex-shrink-0">
+    <button id="ingest-btn" onclick="openIngest()" class="hidden
+            w-full text-xs text-gray-300 hover:text-white items-center gap-2
+            px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition">
+      📥 &nbsp;Indicizza contenuti
+    </button>
     <a href="http://localhost:8079" target="_blank"
        class="w-full text-xs text-gray-500 hover:text-gray-300 flex items-center gap-2
               px-3 py-2 rounded-lg hover:bg-gray-800 transition">
@@ -130,6 +135,51 @@ CHAT_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- ═══════════════════════ INGEST MODAL ═══════════════════════════════════ -->
+<div id="ingest-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center
+     bg-black/50 px-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800 text-base">📥 Indicizza contenuti</h3>
+      <button onclick="closeIngest()" class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+    </div>
+
+    <!-- Server-side path (Code) -->
+    <div id="ingest-path-box" class="hidden space-y-1">
+      <label class="text-xs font-medium text-gray-600">Percorso sul server</label>
+      <input id="ingest-path" type="text" autocomplete="off"
+             placeholder="/percorso/dentro/IS_INGEST_ROOT"
+             class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <p class="text-[11px] text-gray-400">Il percorso deve trovarsi dentro IS_INGEST_ROOT.</p>
+    </div>
+
+    <!-- File upload (Doc/Mentor/Proposal) -->
+    <div id="ingest-upload-box" class="hidden space-y-1">
+      <label class="text-xs font-medium text-gray-600">Carica file (pdf, csv, xlsx, txt, md…)</label>
+      <input id="ingest-files" type="file" multiple
+             class="w-full text-sm text-gray-600
+                    file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                    file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-600
+                    hover:file:bg-indigo-100">
+    </div>
+
+    <div id="ingest-status" class="hidden text-xs px-3 py-2 rounded-lg"></div>
+
+    <div class="flex justify-end gap-2 pt-1">
+      <button onclick="closeIngest()"
+              class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition">
+        Annulla
+      </button>
+      <button id="ingest-run" onclick="submitIngest()"
+              class="px-4 py-2 rounded-lg text-sm font-medium text-white
+                     bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition">
+        Indicizza
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════════════════════════════════
 //  STATE
@@ -137,6 +187,7 @@ CHAT_HTML = """<!DOCTYPE html>
 let streaming      = false;
 let _module        = 'code';   // resolved from /health
 let _moduleInited  = false;
+let _ingestEnabled = false;    // resolved from /health (IS_INGEST_ENABLED)
 let _currentId     = null;     // active conversation ID (null = no conversation)
 let _conversations = [];       // [{id, title, created, messages:[{role,content,sources,meta}]}]
 
@@ -354,6 +405,10 @@ async function checkHealth() {
     _set('dot',        '', 'w-2 h-2 rounded-full bg-green-400');
     _set('dot-label',  (d.llm_backend||'?') + ' · ' + (d.chunks_indexed||0) + ' chunks',
                        'text-xs text-green-600');
+    _ingestEnabled = !!d.ingest_enabled;
+    const ingBtn = document.getElementById('ingest-btn');
+    if (ingBtn) ingBtn.classList.toggle('hidden', !_ingestEnabled);
+    if (ingBtn && _ingestEnabled) ingBtn.classList.add('flex');
     if (!_moduleInited) {
       _module = d.module || 'code';
       document.getElementById('module-title').textContent = MODULE_TITLES[_module] || 'Intelligence Chat';
@@ -526,6 +581,99 @@ async function sendMessage(question) {
 
     streaming = false;
     document.getElementById('send').disabled = false;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  INGEST (opt-in — IS_INGEST_ENABLED)
+// ════════════════════════════════════════════════════════════════════════════
+function openIngest() {
+  // Code → server-side path; other modules → file upload.
+  const isCode = (_module === 'code');
+  document.getElementById('ingest-path-box').classList.toggle('hidden', !isCode);
+  document.getElementById('ingest-upload-box').classList.toggle('hidden', isCode);
+  const st = document.getElementById('ingest-status');
+  st.classList.add('hidden'); st.textContent = '';
+  document.getElementById('ingest-run').disabled = false;
+  document.getElementById('ingest-modal').classList.remove('hidden');
+}
+
+function closeIngest() {
+  document.getElementById('ingest-modal').classList.add('hidden');
+}
+
+function _ingestStatus(text, kind) {
+  const st = document.getElementById('ingest-status');
+  st.classList.remove('hidden');
+  const styles = {
+    info:  'bg-gray-100 text-gray-600',
+    ok:    'bg-green-50 text-green-700',
+    err:   'bg-red-50 text-red-600',
+  };
+  st.className = 'text-xs px-3 py-2 rounded-lg ' + (styles[kind] || styles.info);
+  st.textContent = text;
+}
+
+async function submitIngest() {
+  const runBtn = document.getElementById('ingest-run');
+  runBtn.disabled = true;
+  try {
+    let resp;
+    if (_module === 'code') {
+      const path = document.getElementById('ingest-path').value.trim();
+      if (!path) { _ingestStatus('Inserisci un percorso.', 'err'); runBtn.disabled = false; return; }
+      _ingestStatus('Invio in corso…', 'info');
+      resp = await fetch('/api/v1/ingest/path', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ path })
+      });
+    } else {
+      const input = document.getElementById('ingest-files');
+      if (!input.files.length) { _ingestStatus('Seleziona almeno un file.', 'err'); runBtn.disabled = false; return; }
+      const fd = new FormData();
+      for (const f of input.files) fd.append('files', f);
+      _ingestStatus('Caricamento file…', 'info');
+      resp = await fetch('/api/v1/ingest/upload', { method: 'POST', body: fd });
+    }
+    if (!resp.ok) {
+      let detail = 'errore ' + resp.status;
+      try { const e = await resp.json(); if (e.detail) detail = e.detail; } catch {}
+      _ingestStatus('⚠️ ' + detail, 'err');
+      runBtn.disabled = false;
+      return;
+    }
+    const body = await resp.json();
+    _ingestStatus('In coda (job ' + body.job_id + ')…', 'info');
+    pollIngest(body.job_id);
+  } catch (err) {
+    _ingestStatus('⚠️ ' + err.message, 'err');
+    runBtn.disabled = false;
+  }
+}
+
+async function pollIngest(jobId) {
+  const runBtn = document.getElementById('ingest-run');
+  try {
+    const d = await (await fetch('/api/v1/ingest/status/' + jobId)).json();
+    if (d.status === 'done') {
+      const s = d.stats || {};
+      _ingestStatus('✓ Completato · ' + (s.new||0) + ' nuovi · ' + (s.skipped||0)
+                    + ' invariati · ' + (s.deleted||0) + ' rimossi', 'ok');
+      runBtn.disabled = false;
+      checkHealth();   // refresh chunk count
+      return;
+    }
+    if (d.status === 'error') {
+      _ingestStatus('⚠️ ' + (d.error || 'ingest fallito'), 'err');
+      runBtn.disabled = false;
+      return;
+    }
+    _ingestStatus('Indicizzazione in corso…', 'info');
+    setTimeout(() => pollIngest(jobId), 1000);
+  } catch (err) {
+    _ingestStatus('⚠️ ' + err.message, 'err');
+    runBtn.disabled = false;
   }
 }
 

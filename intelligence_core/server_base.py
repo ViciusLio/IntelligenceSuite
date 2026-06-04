@@ -238,11 +238,13 @@ def create_app(
         # NOTE: llm.is_available() deliberately excluded — it makes a synchronous
         # HTTP call to the LLM backend and exceeds the browser AbortSignal timeout,
         # causing the launcher to show the module as offline even when it is running.
+        from intelligence_core.config import settings
         return {
             "status":         "ok",
             "module":         module,
             "chunks_indexed": retriever.store.count(),
             "llm_backend":    _llm.backend_name,
+            "ingest_enabled": bool(getattr(settings, "is_ingest_enabled", False)),
         }
 
     # ── Non-streaming query ───────────────────────────────────────────────────

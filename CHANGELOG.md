@@ -8,6 +8,29 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Ingest UI** (SOTTO-FASE C) — a "📥 Indicizza contenuti" panel in the chat UI
+  (`intelligence_ui/templates.py`, shared by Code/Doc/Mentor) and in the
+  ProposalIntelligence single-page UI (`ProposalIntelligence/web.py`). The panel
+  is shown **only when** the server reports ingest is enabled.
+  - Code → server-side path field (`POST /api/v1/ingest/path`, confined to
+    `IS_INGEST_ROOT`); Doc/Mentor/Proposal → file upload
+    (`POST /api/v1/ingest/upload`).
+  - After submit the UI polls `GET /api/v1/ingest/status/{job_id}` and shows a
+    live status (queued → running → done/error) with new/skipped/deleted counts,
+    then refreshes the indexed-chunk count.
+- **`ingest_enabled` in `/health`** — both the shared RAG server
+  (`intelligence_core/server_base.py`) and the Proposal server now expose
+  `ingest_enabled` so the browser can gate the ingest panel. Additive field;
+  existing keys unchanged.
+- **Tests**: `tests/test_ingest_ui.py` — `/health` exposes `ingest_enabled`
+  (RAG + Proposal, on/off) and both HTML templates carry the ingest-panel markers
+  (5 tests, offline).
+
+### Notes
+- **Zero breaking changes**: the panel is hidden unless `IS_INGEST_ENABLED=true`,
+  and `ingest_enabled` is a purely additive `/health` field.
+
 ---
 
 ## [0.12.0] — 2026-06-04
