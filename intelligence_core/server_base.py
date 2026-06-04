@@ -222,6 +222,10 @@ def create_app(
     from intelligence_core.observability import add_metrics_endpoint
     add_metrics_endpoint(app)
 
+    # ── Ingestion: opt-in ingest routes (no-op unless IS_INGEST_ENABLED) ──────
+    from intelligence_core.ingest_api import add_ingest_routes
+    add_ingest_routes(app, module=module)
+
     # ── Chat UI ───────────────────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def chat_ui():

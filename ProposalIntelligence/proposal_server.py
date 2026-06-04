@@ -15,7 +15,6 @@ from pydantic import BaseModel
 
 from intelligence_core.config import settings
 from intelligence_core.store import ChromaStore
-from ProposalIntelligence import COLLECTION_NAME
 from ProposalIntelligence.answer import answer_questions
 from ProposalIntelligence.web import PROPOSAL_HTML
 
@@ -54,6 +53,9 @@ def build_app() -> FastAPI:
 
     from intelligence_core.observability import add_metrics_endpoint
     add_metrics_endpoint(app)
+
+    from intelligence_core.ingest_api import add_ingest_routes
+    add_ingest_routes(app, module="proposal")
 
     from intelligence_core import paths
     store = ChromaStore(collection_name=paths.collection_name("qa"),

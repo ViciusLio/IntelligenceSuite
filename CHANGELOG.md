@@ -10,6 +10,36 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.12.0] — 2026-06-04
+
+### Added
+- **Ingest HTTP API** (`intelligence_core/ingest_api.py`) — opt-in routes mounted
+  on every module server (and the Proposal server) **only when**
+  `IS_INGEST_ENABLED=true`; otherwise absent (404), behavior identical to
+  v0.11.x. All routes sit behind the existing Bearer auth middleware.
+  - `POST /api/v1/ingest/path` — index a server-side path (validated inside
+    `IS_INGEST_ROOT`). Returns `{job_id, status}` and runs parse+embed in a
+    background thread.
+  - `POST /api/v1/ingest/upload` — index uploaded files (multipart). Per-file cap
+    `IS_INGEST_MAX_MB` (413 on overflow); files are saved to a temp dir, ingested,
+    then cleaned up. Requires the new `[ingest]` extra (`python-multipart`); if
+    that extra is absent the route is simply not mounted (path + status still work).
+  - `GET /api/v1/ingest/status/{job_id}` — poll job status/stats (404 if unknown).
+  - Each request targets the hosting server's module by default; an optional
+    `module` field can retarget to any of `code | doc | mentor | proposal`.
+- **`[ingest]` optional extra** (`pyproject.toml`): `python-multipart` — enables
+  the upload endpoint without making it a hard dependency.
+- **Tests**: `tests/test_ingest_api.py` — opt-in gate, path validation
+  (outside-root / unknown-module / empty-root → 4xx), async job hand-off + status
+  polling, upload happy-path, and oversize rejection (9 tests, offline).
+
+### Notes
+- **Zero breaking changes**: no routes exist unless `IS_INGEST_ENABLED=true`.
+  The heavy parse+embed always runs asynchronously, so the HTTP call returns at
+  once with a `job_id` to poll.
+
+---
+
 ## [0.11.0] — 2026-06-04
 
 ### Added
