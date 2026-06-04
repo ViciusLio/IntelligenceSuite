@@ -8,6 +8,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **`embed_backend` + `embed_model` in `/health`** — both the shared RAG server
+  (`intelligence_core/server_base.py`) and the Proposal server now report the
+  embedder the running process uses. This makes a query-vs-index model drift
+  visible (e.g. a server started before `ST_MODEL` changed embeds queries with a
+  different model than the stored vectors → near-zero similarity → "No relevant
+  documents found"). Embedders expose a uniform `model_name`; the field is read
+  without probing the backend over the network. Additive `/health` keys.
+
 ---
 
 ## [0.13.0] — 2026-06-04

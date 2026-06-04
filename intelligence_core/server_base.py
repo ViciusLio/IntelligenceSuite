@@ -243,11 +243,18 @@ def create_app(
         # HTTP call to the LLM backend and exceeds the browser AbortSignal timeout,
         # causing the launcher to show the module as offline even when it is running.
         from intelligence_core.config import settings
+        # Embedder backend/model the *running process* actually loaded — exposed so
+        # a query-vs-index model drift (e.g. server started before ST_MODEL changed)
+        # is visible without probing the backend over the network.
+        _emb = getattr(retriever, "embedder", None)
+        embed_model = getattr(_emb, "model_name", None) or getattr(_emb, "model", None)
         return {
             "status":         "ok",
             "module":         module,
             "chunks_indexed": retriever.store.count(),
             "llm_backend":    _llm.backend_name,
+            "embed_backend":  getattr(settings, "embed_backend", None),
+            "embed_model":    embed_model,
             "ingest_enabled": bool(getattr(settings, "is_ingest_enabled", False)),
         }
 

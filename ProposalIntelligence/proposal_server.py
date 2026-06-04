@@ -71,11 +71,20 @@ def build_app() -> FastAPI:
     @app.get("/health")
     def health():
         from intelligence_core.llm import get_module_llm_provider
+        # Configured embedder (pi override → global fallback) without instantiating
+        # it; lets clients spot a query-vs-index model drift.
+        embed_backend = getattr(settings, "pi_embed_backend", "") or settings.embed_backend
+        embed_model = getattr(settings, "pi_embed_model", "") or (
+            settings.st_model if embed_backend == "st"
+            else getattr(settings, "ollama_embed_model", None)
+        )
         return {
             "status":         "ok",
             "module":         "proposal",
             "chunks_indexed": store.count(),
             "llm_backend":    get_module_llm_provider("pi").backend_name,
+            "embed_backend":  embed_backend,
+            "embed_model":    embed_model,
             "default_mode":   settings.proposal_mode,
             "ingest_enabled": bool(getattr(settings, "is_ingest_enabled", False)),
         }

@@ -20,6 +20,7 @@ class OllamaEmbedder:
         from intelligence_core.config import settings
         self.base_url = base_url or settings.ollama_base_url
         self.model = model or settings.ollama_embed_model
+        self.model_name = self.model   # uniform field for /health
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         import httpx
@@ -64,6 +65,7 @@ class SentenceTransformerEmbedder:
     def __init__(self, model_name: str = None):
         from intelligence_core.config import settings
         _model_name = model_name or settings.st_model
+        self.model_name = _model_name   # exposed via /health to spot model drift
         try:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(_model_name)
@@ -92,6 +94,7 @@ class ClaudeEmbedder:
             raise ValueError("ANTHROPIC_API_KEY non configurata")
         self.api_key = settings.anthropic_api_key
         self.model = "voyage-code-2" if domain == "code" else "voyage-3"
+        self.model_name = self.model   # uniform field for /health
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         import httpx
