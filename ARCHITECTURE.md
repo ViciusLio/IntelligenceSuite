@@ -49,6 +49,43 @@ Max 400 righe per file. Se cresce oltre, sta facendo troppe cose.
 }
 ```
 
+## Capacità enterprise (multi-progetto, auth, observability)
+
+Tre feature opt-in, tutte con default che riproducono il comportamento
+pre-0.9.0 (**zero breaking changes**), implementate con sola stdlib +
+FastAPI/Starlette (nessuna nuova dipendenza).
+
+**Multi-progetto (`IS_PROJECT`).**
+`intelligence_core/paths.py` è l'unica fonte di verità per i nomi delle
+collection ChromaDB e per le directory di stato, risolti a runtime in base a
+`IS_PROJECT`:
+
+| | `IS_PROJECT` non impostato (`default`) | `IS_PROJECT=acme` |
+|---|---|---|
+| Collection | `code_intelligence`, `doc_intelligence`, … | `acme_code_intelligence`, … |
+| Stato su disco | `~/.intelligence_suite/<chroma\|graph\|eval\|skill_sessions>/` | `~/.intelligence_suite/acme/<…>/` |
+
+Nessun dato passa da un progetto all'altro: cambiare `IS_PROJECT` e ri-eseguire
+l'ingest è sufficiente per isolare client/team/ambienti sulla stessa macchina.
+
+**Autenticazione (`IS_AUTH_ENABLED` / `IS_API_KEY`).**
+`intelligence_core/auth.py` è un middleware **ASGI puro** (non
+`BaseHTTPMiddleware`) così le risposte SSE non vengono mai bufferizzate. Quando
+abilitato, ogni path `/api/v1/*` richiede `Authorization: Bearer <IS_API_KEY>`;
+i path pubblici (`/`, `/health`, `/docs`, `/redoc`, `/openapi.json`) restano
+aperti. Token mancante/errato → `403 {"error":"invalid_api_key"}`. Se l'auth è
+on ma la chiave è vuota, `verify_auth_config()` impedisce l'avvio
+(`AuthConfigError`). `auth_headers()` fornisce gli header corretti per le
+chiamate inter-modulo (dict vuoto se l'auth è off).
+
+**Observability (`IS_LOG_LEVEL` / `IS_LOG_FORMAT` / `IS_METRICS_ENABLED`).**
+`intelligence_core/observability.py` centralizza logging strutturato (un oggetto
+JSON per riga su stdout, fallback `text` per il dev) e un `MetricsCollector`
+in-memory thread-safe. Un evento `query` per ogni chiamata a `/api/v1/query` e
+`/api/v1/stream`, un evento `ingestion` a fine embed. **Mai testo di
+domande/risposte nei log** — solo metadati (es. la *lunghezza* della domanda).
+`GET /metrics` è opt-in: assente (404) finché `IS_METRICS_ENABLED=true`.
+
 ## Architettura MentorIntelligence
 
 ```

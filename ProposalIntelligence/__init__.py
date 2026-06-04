@@ -9,6 +9,6 @@ Pipeline (come gli altri moduli della suite):
     nuovo questionario → estrai domande → retrieve esempi simili → LLM (prompt di stile) → Markdown
 """
 
-COLLECTION_NAME = "proposal_intelligence"
+COLLECTION_NAME = "proposal_intelligence"  # base name; runtime uses paths.collection_name("qa")
 
 __all__ = ["COLLECTION_NAME"]

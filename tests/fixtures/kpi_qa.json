@@ -1,0 +1,18 @@
+[
+  {"query_id": "Q001", "domain": "code", "query": "How is the JWT authentication token validated?", "relevant": "code::function::auth.validate_token", "difficulty": "easy"},
+  {"query_id": "Q002", "domain": "code", "query": "Which endpoints require the admin administrator role?", "relevant": "code::function::routes.admin_endpoints", "difficulty": "medium"},
+  {"query_id": "Q003", "domain": "code", "query": "How does escalation from the local model to the Claude cloud backend work?", "relevant": "code::class::escalation.EscalationPolicy", "difficulty": "medium"},
+  {"query_id": "Q004", "domain": "code", "query": "Which default embedder produces Ollama nomic-embed-text embeddings?", "relevant": "code::class::embedder.OllamaEmbedder", "difficulty": "easy"},
+  {"query_id": "Q005", "domain": "code", "query": "How do I register a new language parser plugin?", "relevant": "code::function::parsers.register_parser", "difficulty": "hard"},
+  {"query_id": "Q006", "domain": "code", "query": "Where are chunk embeddings persisted in the vector store?", "relevant": "code::class::store.ChromaVectorStore", "difficulty": "medium"},
+  {"query_id": "Q007", "domain": "code", "query": "How does the incremental delta index update skip unchanged checksum chunks?", "relevant": "code::function::embed_chunks.incremental_update", "difficulty": "medium"},
+  {"query_id": "Q008", "domain": "code", "query": "Which unit tests cover the TypeScript parser?", "relevant": "code::function::tests.test_typescript_parser", "difficulty": "easy"},
+  {"query_id": "Q009", "domain": "doc", "query": "How do I obtain an API token through authentication?", "relevant": "doc::section::APIRef.Authentication", "difficulty": "easy"},
+  {"query_id": "Q010", "domain": "doc", "query": "What is the rate limit for the Team plan?", "relevant": "doc::section::APIRef.RateLimiting", "difficulty": "easy"},
+  {"query_id": "Q011", "domain": "doc", "query": "What rollback to do if a deploy fails within thirty minutes?", "relevant": "doc::section::DeployProc.Rollback", "difficulty": "medium"},
+  {"query_id": "Q012", "domain": "doc", "query": "Why pgvector over Pinecone in the architecture decision?", "relevant": "doc::section::ADR007.Decision", "difficulty": "hard"},
+  {"query_id": "Q013", "domain": "doc", "query": "What are the mandatory prerequisites before a deploy?", "relevant": "doc::section::DeployProc.Prerequisites", "difficulty": "medium"},
+  {"query_id": "Q014", "domain": "doc", "query": "What P99 latency is guaranteed in the SLA agreement?", "relevant": "doc::section::APIRef.SLA", "difficulty": "easy"},
+  {"query_id": "Q015", "domain": "doc", "query": "How is data encrypted at rest and in transit?", "relevant": "doc::section::Security.Encryption", "difficulty": "medium"},
+  {"query_id": "Q016", "domain": "doc", "query": "What is the backup schedule and retention in days?", "relevant": "doc::section::Backup.Schedule", "difficulty": "easy"}
+]

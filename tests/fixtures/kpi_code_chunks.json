@@ -1,0 +1,82 @@
+[
+  {
+    "id": "code::function::auth.validate_token",
+    "domain": "code",
+    "type": "function",
+    "text": "Function: validate_token (in app/auth.py)\nSignature: def validate_token(token: str) -> dict\nDocstring: Validate a JWT authentication token: decode the bearer signature and verify the expiry claim, returning the decoded payload.",
+    "source": "app/auth.py",
+    "language": "python",
+    "metadata": {"line_start": 45, "line_end": 58, "class": null, "is_async": false},
+    "checksum": ""
+  },
+  {
+    "id": "code::function::routes.admin_endpoints",
+    "domain": "code",
+    "type": "function",
+    "text": "Function: admin_endpoints (in app/routes.py)\nDocstring: Register admin-only HTTP endpoints that require the administrator role guard before dispatching the request handler.",
+    "source": "app/routes.py",
+    "language": "python",
+    "metadata": {"line_start": 88, "line_end": 120, "class": null, "is_async": true},
+    "checksum": ""
+  },
+  {
+    "id": "code::class::escalation.EscalationPolicy",
+    "domain": "code",
+    "type": "class",
+    "text": "Class: EscalationPolicy (in intelligence_core/escalation.py)\nDocstring: Escalation policy deciding when to escalate a query from the local model to the Claude cloud backend based on confidence thresholds.",
+    "source": "intelligence_core/escalation.py",
+    "language": "python",
+    "metadata": {"line_start": 10, "line_end": 64, "base_classes": []},
+    "checksum": ""
+  },
+  {
+    "id": "code::class::embedder.OllamaEmbedder",
+    "domain": "code",
+    "type": "class",
+    "text": "Class: OllamaEmbedder (in intelligence_core/embedder.py)\nDocstring: Default embedder calling Ollama to produce nomic-embed-text vector embeddings for chunks and queries.",
+    "source": "intelligence_core/embedder.py",
+    "language": "python",
+    "metadata": {"line_start": 16, "line_end": 50, "base_classes": []},
+    "checksum": ""
+  },
+  {
+    "id": "code::function::parsers.register_parser",
+    "domain": "code",
+    "type": "function",
+    "text": "Function: register_parser (in intelligence_core/parsers/__init__.py)\nDocstring: Register a new language parser plugin into the parser registry so the pipeline can chunk additional source languages.",
+    "source": "intelligence_core/parsers/__init__.py",
+    "language": "python",
+    "metadata": {"line_start": 30, "line_end": 44, "class": null, "is_async": false},
+    "checksum": ""
+  },
+  {
+    "id": "code::class::store.ChromaVectorStore",
+    "domain": "code",
+    "type": "class",
+    "text": "Class: ChromaVectorStore (in intelligence_core/store.py)\nDocstring: Persist chunk embeddings into the ChromaDB vector store collection and run cosine similarity search over them.",
+    "source": "intelligence_core/store.py",
+    "language": "python",
+    "metadata": {"line_start": 19, "line_end": 127, "base_classes": []},
+    "checksum": ""
+  },
+  {
+    "id": "code::function::embed_chunks.incremental_update",
+    "domain": "code",
+    "type": "function",
+    "text": "Function: incremental_update (in CodeIntelligence/embed_chunks.py)\nDocstring: Incremental delta update of the index, embedding only chunks whose checksum is unchanged are skipped and orphan ids removed.",
+    "source": "CodeIntelligence/embed_chunks.py",
+    "language": "python",
+    "metadata": {"line_start": 125, "line_end": 127, "class": null, "is_async": false},
+    "checksum": ""
+  },
+  {
+    "id": "code::function::tests.test_typescript_parser",
+    "domain": "code",
+    "type": "function",
+    "text": "Function: test_typescript_parser (in tests/test_treesitter_parsers.py)\nDocstring: Unit tests covering the TypeScript language parser chunk extraction and node traversal.",
+    "source": "tests/test_treesitter_parsers.py",
+    "language": "python",
+    "metadata": {"line_start": 200, "line_end": 240, "class": null, "is_async": false},
+    "checksum": ""
+  }
+]

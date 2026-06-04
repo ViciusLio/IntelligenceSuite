@@ -850,6 +850,112 @@ All variables are accepted as plain environment variables too — no `.env` file
 
 ---
 
+## Multi-project support
+
+Run several isolated knowledge bases from one installation. Set `IS_PROJECT` to
+namespace **every** ChromaDB collection and state directory by project — useful
+to keep separate clients, teams, or environments apart on the same machine.
+
+```env
+IS_PROJECT=acme    # default "default" → identical to the v0.8.x layout
+```
+
+| Concern | `IS_PROJECT` unset (`default`) | `IS_PROJECT=acme` |
+|---|---|---|
+| ChromaDB collections | `code_intelligence`, `doc_intelligence`, … | `acme_code_intelligence`, `acme_doc_intelligence`, … |
+| State directories | `~/.intelligence_suite/<chroma\|graph\|eval\|skill_sessions>/` | `~/.intelligence_suite/acme/<chroma\|graph\|eval\|skill_sessions>/` |
+
+Collection names and paths are resolved at call time by
+`intelligence_core/paths.py` (single source of truth). Switching projects is just
+a matter of changing `IS_PROJECT` and re-running the ingest commands — nothing
+leaks between projects. The default value reproduces the exact pre-0.9.0 layout,
+so existing installs keep working with **zero migration**.
+
+---
+
+## Authentication
+
+Optional Bearer-token auth across **all** servers. Disabled by default → behaves
+exactly like v0.8.x. Enable it to require a shared API key on every `/api/v1/*`
+endpoint.
+
+```env
+IS_AUTH_ENABLED=true                 # default false
+IS_API_KEY=your-long-random-secret   # required when auth is enabled
+```
+
+```bash
+# With auth enabled, protected calls need the header:
+curl -H "Authorization: Bearer your-long-random-secret" \
+     -X POST http://localhost:8080/api/v1/query \
+     -d '{"question":"how does retrieval work?"}'
+```
+
+- **Public paths** stay open without a token: `/` (UI), `/health` (launcher
+  poller), `/docs`, `/redoc`, `/openapi.json`.
+- A missing or wrong token on a protected path → **HTTP 403** with body
+  `{"error":"invalid_api_key"}`.
+- If `IS_AUTH_ENABLED=true` but `IS_API_KEY` is empty, the server **refuses to
+  start** (`AuthConfigError`) instead of silently rejecting every request.
+- The middleware is pure ASGI, so **SSE streaming is never buffered or broken**.
+- For inter-module calls, `intelligence_core.auth.auth_headers()` returns the
+  right `Authorization` header (empty dict when auth is off), so callers work
+  the same regardless of configuration.
+
+---
+
+## Observability
+
+Structured logging and in-memory metrics, **stdlib only** — no extra dependency,
+opt-in, zero impact on the default behaviour.
+
+### Structured logging
+
+The suite logs **one JSON object per line to stdout** by default — ready to ship
+to any log collector (Loki, ELK, CloudWatch, …). Switch to a human-readable
+format for local development.
+
+```env
+IS_LOG_LEVEL=INFO     # DEBUG | INFO | WARNING | ERROR   (default INFO)
+IS_LOG_FORMAT=json    # json (default) | text            (text = dev-friendly)
+```
+
+One `query` event is emitted per `/api/v1/query` **and** `/api/v1/stream` call
+(streaming events fire once the response is fully sent), and one `ingestion`
+event at the end of each embed run (`ci-embed`, `di-embed`, `pi-embed`). Example:
+
+```json
+{"ts":"2026-06-04T10:12:03Z","level":"INFO","logger":"intelligence_suite","msg":"query","event":"query","module":"code","project":"default","intent":"rag","question_length":42,"top_k":5,"confidence":0.81,"escalated":false,"backend":"ollama","latency_ms":128.4}
+```
+
+> **Privacy by design:** the text of questions and answers is **never** logged —
+> only metadata such as the question *length*. Bodies are potentially sensitive.
+
+### Metrics endpoint
+
+Opt-in per-process counters, exposed as JSON. Disabled by default: when off the
+route does not exist (`404`).
+
+```env
+IS_METRICS_ENABLED=true   # default false → GET /metrics returns 404
+```
+
+```bash
+curl http://localhost:8080/metrics
+{
+  "queries_total": 128,
+  "queries_escalated": 7,
+  "avg_latency_ms": 142.6,
+  "avg_confidence": 0.78,
+  "uptime_seconds": 3601.2
+}
+```
+
+Counters are in-memory and thread-safe; they reset when the process restarts.
+The endpoint is registered on all six servers.
+
+---
+
 ## Design principles
 
 | Principle | Implementation |
@@ -913,8 +1019,30 @@ non-source directories.
 ```bash
 pip install -e ".[dev]"
 pytest tests/ -v
-# 258 passed, 5 skipped (KPI — require indexed store), 0 failed
 ```
+
+The suite runs **offline and deterministically** — no Ollama, no network, no
+optional extra, no disk state required.
+
+**Retrieval-quality (KPI) tests run in CI**, they no longer skip. They mount a
+disk-less, in-memory ChromaDB loaded with versioned synthetic fixtures
+(`tests/fixtures/`) and assert Hit@1 / Hit@5 / MRR on known chunks, so a broken
+retriever fails the build for real.
+
+Two pytest markers (declared in `pyproject.toml`) let you slice the suite:
+
+```bash
+pytest -m kpi              # only the deterministic retrieval-quality tests
+pytest -m "not slow"       # everything except tests needing a real backend
+```
+
+| Marker | Meaning |
+|---|---|
+| `kpi` | Retrieval quality on an in-memory store. Runs in CI, never skips. |
+| `slow` | Needs a real embedding backend (Ollama / sentence-transformers) or network. |
+
+`ci-eval` (RAGAS) needs a live LLM **and** a populated store, so it stays out of
+standard CI. See [`CI.md`](CI.md) for the full reference.
 
 ---
 

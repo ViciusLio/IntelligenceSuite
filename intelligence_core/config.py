@@ -124,6 +124,44 @@ class Settings(BaseSettings):
     thinking_mode:        bool | None = None
     agent_max_iterations: int  = 5
 
+    # ── API authentication (v0.9.1) ───────────────────────────────────────────
+    # IS_AUTH_ENABLED=false (default) → no checks, identical to v0.8.x.
+    # IS_AUTH_ENABLED=true  → all /api/v1/* endpoints require:
+    #     Authorization: Bearer <IS_API_KEY>
+    # /health and / (web UI) remain public regardless.
+    # Warning logged at boot if IS_AUTH_ENABLED=true and IS_API_KEY is empty.
+    is_auth_enabled: bool = False
+    is_api_key:      str  = ""
+
+    # ── Observability (v0.9.2) ────────────────────────────────────────────────
+    # Structured logging + opt-in metrics. All default to current behavior.
+    #   IS_LOG_LEVEL    standard logging level (default INFO)
+    #   IS_LOG_FORMAT   "json" (default, one JSON object per line) | "text"
+    #   IS_METRICS_ENABLED=false (default) → GET /metrics returns 404 (no route);
+    #                     true → GET /metrics returns in-memory counters as JSON.
+    # Query/answer text is NEVER logged — only metadata (e.g. question length).
+    is_log_level:       str  = "INFO"
+    is_log_format:      str  = "json"
+    is_metrics_enabled: bool = False
+
+    # ── Ingestion service (v0.11.0) ───────────────────────────────────────────
+    # On-demand parser+embed via API/UI. All default to current behavior (off).
+    #   IS_INGEST_ENABLED=false (default) → no ingest routes, identical to v0.10.x.
+    #   IS_INGEST_ROOT  empty (default)   → server-side path ingest disabled until
+    #     you set it; when set, ``POST /ingest/path`` accepts only paths *inside*
+    #     this directory (defence against path traversal).
+    #   IS_INGEST_MAX_MB — per-file upload size cap (default 50 MB).
+    is_ingest_enabled: bool = False
+    is_ingest_root:    str  = ""
+    is_ingest_max_mb:  int  = 50
+
+    # ── Multi-project namespacing ─────────────────────────────────────────────
+    # Set IS_PROJECT to isolate collections and state dirs per project.
+    # Default ("default") replicates the exact single-project behavior of v0.8.x.
+    # Example: IS_PROJECT=acme  → collections acme_code_intelligence, …
+    #                             state dirs  ~/.intelligence_suite/acme/…
+    is_project: str = "default"
+
     # ── Server ports (one per module, avoids conflicts when running together) ──
     ci_port:       int = 8080   # CodeIntelligence
     di_port:       int = 8081   # DocIntelligence

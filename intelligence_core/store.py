@@ -1,6 +1,7 @@
 """Vector store: ChromaDB (default) e PgVector (skeleton roadmap v0.2)."""
 
 from __future__ import annotations
+
 import logging
 from typing import Protocol, runtime_checkable
 
@@ -21,9 +22,15 @@ class ChromaStore:
 
     def __init__(self, collection_name: str = "intelligence_suite", persist_dir: str = None):
         import chromadb
+
         from intelligence_core.config import settings
         persist_dir = persist_dir or settings.chroma_persist_dir
-        self._client = chromadb.PersistentClient(path=persist_dir)
+        # ":memory:" → ephemeral, disk-less client (used by deterministic KPI
+        # tests so CI never touches disk). Any other value persists as before.
+        if persist_dir == ":memory:":
+            self._client = chromadb.EphemeralClient()
+        else:
+            self._client = chromadb.PersistentClient(path=persist_dir)
         self._col = self._client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"},

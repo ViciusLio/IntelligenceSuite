@@ -8,6 +8,220 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Export** (SOTTO-FASE D) — `POST /api/v1/export` on every module server (and
+  the Proposal server) turns a client-supplied document (a title + sections, e.g.
+  a chat conversation or a set of Proposal answers) into a downloadable file.
+  - `intelligence_core/export.py` — renderers for **Markdown** and a standalone
+    **HTML** page (stdlib, always available) and **PDF** (via `fpdf2`).
+  - `intelligence_core/export_api.py` — the route; returns the file as an
+    attachment with the right `Content-Type` / `Content-Disposition`. Unknown
+    format → 400; `format=pdf` without the extra → 503 (Markdown/HTML keep working).
+  - **`[export]` optional extra** (`pyproject.toml`): `fpdf2` — enables PDF output
+    without adding a hard dependency. Also folded `ingest` + `export` into `[all]`.
+  - **UI**: a "⬇︎ Esporta" menu (Markdown / HTML / PDF) in the chat top bar
+    (exports the active conversation) and in the Proposal header (exports the
+    generated answers, shown once answers exist).
+  - **Tests**: `tests/test_export_api.py` — renderers, PDF magic-bytes + the
+    dependency-missing 503 branch, and the HTTP route per format (10 tests).
+- **Ingest UI** (SOTTO-FASE C) — a "📥 Indicizza contenuti" panel in the chat UI
+  (`intelligence_ui/templates.py`, shared by Code/Doc/Mentor) and in the
+  ProposalIntelligence single-page UI (`ProposalIntelligence/web.py`). The panel
+  is shown **only when** the server reports ingest is enabled.
+  - Code → server-side path field (`POST /api/v1/ingest/path`, confined to
+    `IS_INGEST_ROOT`); Doc/Mentor/Proposal → file upload
+    (`POST /api/v1/ingest/upload`).
+  - After submit the UI polls `GET /api/v1/ingest/status/{job_id}` and shows a
+    live status (queued → running → done/error) with new/skipped/deleted counts,
+    then refreshes the indexed-chunk count.
+- **`ingest_enabled` in `/health`** — both the shared RAG server
+  (`intelligence_core/server_base.py`) and the Proposal server now expose
+  `ingest_enabled` so the browser can gate the ingest panel. Additive field;
+  existing keys unchanged.
+- **Tests**: `tests/test_ingest_ui.py` — `/health` exposes `ingest_enabled`
+  (RAG + Proposal, on/off) and both HTML templates carry the ingest-panel markers
+  (5 tests, offline).
+
+### Notes
+- **Zero breaking changes**: the panel is hidden unless `IS_INGEST_ENABLED=true`,
+  and `ingest_enabled` is a purely additive `/health` field.
+
+---
+
+## [0.12.0] — 2026-06-04
+
+### Added
+- **Ingest HTTP API** (`intelligence_core/ingest_api.py`) — opt-in routes mounted
+  on every module server (and the Proposal server) **only when**
+  `IS_INGEST_ENABLED=true`; otherwise absent (404), behavior identical to
+  v0.11.x. All routes sit behind the existing Bearer auth middleware.
+  - `POST /api/v1/ingest/path` — index a server-side path (validated inside
+    `IS_INGEST_ROOT`). Returns `{job_id, status}` and runs parse+embed in a
+    background thread.
+  - `POST /api/v1/ingest/upload` — index uploaded files (multipart). Per-file cap
+    `IS_INGEST_MAX_MB` (413 on overflow); files are saved to a temp dir, ingested,
+    then cleaned up. Requires the new `[ingest]` extra (`python-multipart`); if
+    that extra is absent the route is simply not mounted (path + status still work).
+  - `GET /api/v1/ingest/status/{job_id}` — poll job status/stats (404 if unknown).
+  - Each request targets the hosting server's module by default; an optional
+    `module` field can retarget to any of `code | doc | mentor | proposal`.
+- **`[ingest]` optional extra** (`pyproject.toml`): `python-multipart` — enables
+  the upload endpoint without making it a hard dependency.
+- **Tests**: `tests/test_ingest_api.py` — opt-in gate, path validation
+  (outside-root / unknown-module / empty-root → 4xx), async job hand-off + status
+  polling, upload happy-path, and oversize rejection (9 tests, offline).
+
+### Notes
+- **Zero breaking changes**: no routes exist unless `IS_INGEST_ENABLED=true`.
+  The heavy parse+embed always runs asynchronously, so the HTTP call returns at
+  once with a `job_id` to poll.
+
+---
+
+## [0.11.0] — 2026-06-04
+
+### Added
+- **On-demand ingestion service** (`intelligence_core/ingestion.py`) — the engine
+  behind the upcoming ingest API/UI. Parses + embeds either a server-side path or
+  a set of uploaded files for any of the four modules (`code`, `doc`, `mentor`,
+  `proposal`), reusing each module's **existing parsers** and the **in-store
+  checksum idempotency** (only new/changed chunks are embedded; unchanged content
+  is skipped). Highlights:
+  - **Best-effort**: a single unreadable file is logged and skipped, never fatal.
+  - **Async jobs**: thread-safe `JobRegistry` / `IngestJob` (`queued → running →
+    done | error`); `submit()` returns a `job_id` to poll. Mirrors the
+    observability `MetricsCollector` pattern.
+  - **Path safety**: `validate_path()` confines server-side path ingest to
+    `IS_INGEST_ROOT` (defence against path traversal) and is **disabled entirely**
+    until that variable is set.
+  - **Orphan pruning** only on full-directory path scans; uploads (partial sets)
+    never prune.
+- **CSV/TSV parser** (`DocIntelligence/parsers/csv_parser.py`, stdlib-only) —
+  produces a schema *section* chunk + a preview *table* chunk; registered in the
+  Doc parser registry. No new dependency.
+- **Config** (all opt-in, default = current behavior): `IS_INGEST_ENABLED`
+  (default `false`), `IS_INGEST_ROOT` (default empty → path ingest off until set),
+  `IS_INGEST_MAX_MB` (default `50`).
+- **Tests**: `tests/test_ingestion.py` — CSV parsing, upload-mode ingest,
+  idempotency, per-module dispatch (doc/mentor/proposal), `IS_INGEST_ROOT` path
+  safety, orphan pruning, and the async job registry (18 tests, fully offline).
+
+### Notes
+- **Zero breaking changes**: no HTTP routes are added in this release — the
+  service is library-only. API endpoints and UI panels land in later releases,
+  also gated behind `IS_INGEST_ENABLED`.
+
+---
+
+## [0.10.0] — 2026-06-04
+
+### Added
+- **Deterministic KPI tests in CI** — retrieval quality is now verified on every
+  commit instead of being skipped when no live index exists:
+  - Versioned **synthetic fixtures** in `tests/fixtures/` (`kpi_code_chunks.json`,
+    `kpi_doc_chunks.json`, `kpi_qa.json`) — realistic but non-confidential.
+  - `tests/conftest.py`: a dependency-free `HashingEmbedder` (bag-of-words →
+    cosine similarity = lexical overlap) plus fixtures that mount a **disk-less,
+    in-memory ChromaDB** and return a ready `Retriever`. Collection naming reuses
+    the Fase-1 `paths.collection_name(...)` (classic names for the default
+    project). No Ollama, no network, no optional extra, no disk.
+  - `tests/test_kpi.py`: Hit@1 / Hit@5 / MRR on known chunks, confidence always
+    in `[0,1]`, sequential ranks, generous CI latency ceiling. These **fail for
+    real** if the retriever is broken.
+- **pytest markers** (`pyproject.toml`): `kpi` (retrieval quality on in-memory
+  store — runs in CI, never skips) and `slow` (needs a real embedding backend /
+  network — exclude with `pytest -m "not slow"`).
+- **`CI.md`** at the repo root — how to run the full suite, exclude slow tests,
+  run only the KPI tests, and why `ci-eval` stays out of standard CI.
+
+### Changed
+- `intelligence_core/store.py`: `ChromaStore` accepts `persist_dir=":memory:"` to
+  use an ephemeral, disk-less client (used by the KPI fixtures). Any other value
+  persists exactly as before — zero behaviour change for existing callers.
+- `README.md`: "Test suite" section documents the markers and the in-memory KPI
+  tests.
+
+---
+
+## [0.9.2] — 2026-06-04
+
+### Added
+- **Structured observability** — new module `intelligence_core/observability.py`
+  (stdlib only, no new dependency):
+  - Centralized logger emitting **one JSON object per line to stdout** by default
+    (`IS_LOG_FORMAT=json`), with a human-readable `text` fallback for local dev.
+    Level via `IS_LOG_LEVEL` (default `INFO`).
+  - One structured `query` event per call to `/api/v1/query`, with metadata only:
+    module, project, intent, question length, top_k, confidence, escalated,
+    backend, latency_ms. **Question/answer text is never logged.**
+  - One structured `ingestion` event at the end of each embed run (`ci-embed`,
+    `di-embed`, `pi-embed`): total / new / skipped chunks, duration, backend.
+  - In-memory, thread-safe `MetricsCollector` (counters reset on restart).
+- **Opt-in `GET /metrics` endpoint** via `IS_METRICS_ENABLED` (default `false`):
+  when disabled the route does not exist (404); when enabled it returns
+  in-memory counters as JSON (queries total/escalated, avg latency, avg
+  confidence, uptime). Registered on all six servers.
+- `IS_LOG_LEVEL`, `IS_LOG_FORMAT`, `IS_METRICS_ENABLED` settings — all defaults
+  preserve v0.9.1 behaviour (zero breaking changes).
+
+### Changed
+- `intelligence_core/server_base.py`: `/api/v1/query` **and** `/api/v1/stream`
+  emit a structured event + update metrics on every response path (RAG, agent,
+  skill — best-effort, never breaks a request). Streaming events fire once the
+  SSE response is fully generated so streamed queries are counted in `/metrics`.
+- `CodeIntelligence/embed_chunks.py`, `DocIntelligence/embed_docs.py`,
+  `ProposalIntelligence/embed_qa.py`: emit an ingestion event when done.
+- `.env.example`: documents `IS_LOG_LEVEL`, `IS_LOG_FORMAT`, `IS_METRICS_ENABLED`.
+
+---
+
+## [0.9.1] — 2026-06-04
+
+### Added
+- **API Bearer-token authentication** (`IS_AUTH_ENABLED` / `IS_API_KEY`): when
+  `IS_AUTH_ENABLED=true`, all `/api/v1/*` endpoints require the header
+  `Authorization: Bearer <IS_API_KEY>`.  `/health` and `/` remain public.
+  Returns `{"error":"invalid_api_key"}` with HTTP 403 on missing/wrong token.
+- New module `intelligence_core/auth.py` — pure ASGI middleware (no response
+  buffering, SSE streaming unaffected) + `add_auth_middleware()` helper +
+  `verify_auth_config()` (refuses to start with `AuthConfigError` when auth is
+  enabled but `IS_API_KEY` is empty) + `auth_headers()` (returns the right
+  `Authorization` header for inter-module calls, empty dict when auth is off).
+- `IS_AUTH_ENABLED=false` default → zero breaking changes vs v0.9.0.
+
+### Changed
+- `intelligence_core/server_base.py`, `SkillIntelligence/skill_server.py`,
+  `AgentIntelligence/agent_server.py`, `ProposalIntelligence/proposal_server.py`:
+  all call `add_auth_middleware()` and `warn_if_key_missing()` at startup.
+- `.env.example`: documents the new `IS_AUTH_ENABLED` and `IS_API_KEY` variables.
+
+---
+
+## [0.9.0] — 2026-06-04
+
+### Added
+- **Multi-project namespacing** (`IS_PROJECT` env var): set `IS_PROJECT=acme` to
+  isolate all ChromaDB collections (`acme_code_intelligence`, …) and state
+  directories (`~/.intelligence_suite/acme/chroma|graph|eval|skill_sessions/`)
+  per project.  Default value `"default"` replicates the exact v0.8.x layout
+  with zero breaking changes.
+- New module `intelligence_core/paths.py` — single source of truth for
+  collection names and state-directory paths, project-aware at call time.
+
+### Changed
+- `intelligence_core/graph/store.py`: `GRAPH_DIR` is now a patchable sentinel
+  (`None`) resolved at call time via `paths.graph_dir()`.
+- `intelligence_core/evaluation/report.py`: same pattern for `EVAL_DIR`.
+- `intelligence_core/evaluation/paths.py`: `get_collection()` and
+  `get_all_collections()` delegate to `paths.collection_name()` — collection
+  names are now project-prefixed when IS_PROJECT is set.
+- `intelligence_core/retriever.py`: `Retriever.load_default()` and
+  `MultiRetriever.load_default()` pass `persist_dir` from `paths.chroma_dir()`.
+- All server and embed entry-points use `paths.collection_name()` at build time;
+  `SkillIntelligence` and `AgentIntelligence` resolve collection names at call time.
+- Launcher header shows project name when `IS_PROJECT != "default"`.
+- `.env.example`: documents the new `IS_PROJECT` variable.
+
 ---
 
 ## [0.8.1] — 2026-06-03

@@ -15,7 +15,7 @@ app.add_middleware(
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
-_HTML = """\
+_HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,7 +37,7 @@ _HTML = """\
   <span class="text-3xl">🧠</span>
   <div>
     <h1 class="text-lg font-bold tracking-tight">IntelligenceSuite</h1>
-    <p class="text-xs text-gray-500">On-premise knowledge retrieval · Local AI</p>
+    <p class="text-xs text-gray-500">{{SUBTITLE}}</p>
   </div>
 </header>
 
@@ -202,9 +202,23 @@ setInterval(poll, 5000);
 """
 
 
+_HTML = _HTML_TEMPLATE  # backward-compat alias used by existing tests
+
+
+def _build_html() -> str:
+    from intelligence_core.config import settings
+    project = settings.is_project
+    subtitle = (
+        f"On-premise knowledge retrieval · {project}"
+        if project != "default"
+        else "On-premise knowledge retrieval · Local AI"
+    )
+    return _HTML_TEMPLATE.replace("{{SUBTITLE}}", subtitle)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return HTMLResponse(_HTML)
+    return HTMLResponse(_build_html())
 
 
 def main():

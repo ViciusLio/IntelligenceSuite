@@ -1,20 +1,21 @@
 """FastAPI app base — shared by CodeIntelligence, DocIntelligence, MentorIntelligence."""
 
 from __future__ import annotations
+
 import asyncio
 import json
+import logging
 import threading
 import time
-import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from intelligence_core.retriever import Retriever
 from intelligence_core.escalation import EscalationPolicy
 from intelligence_core.llm import LLMProvider, get_llm_provider
+from intelligence_core.retriever import Retriever
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +213,23 @@ def create_app(
         allow_headers=["*"],
     )
 
+    # ── Auth (outermost layer — rejects 401 before reaching any handler) ──────
+    from intelligence_core.auth import add_auth_middleware, warn_if_key_missing
+    add_auth_middleware(app)
+    warn_if_key_missing()
+
+    # ── Observability: opt-in GET /metrics (no-op unless IS_METRICS_ENABLED) ──
+    from intelligence_core.observability import add_metrics_endpoint
+    add_metrics_endpoint(app)
+
+    # ── Ingestion: opt-in ingest routes (no-op unless IS_INGEST_ENABLED) ──────
+    from intelligence_core.ingest_api import add_ingest_routes
+    add_ingest_routes(app, module=module)
+
+    # ── Export: POST /api/v1/export (Markdown/HTML always, PDF via [export]) ──
+    from intelligence_core.export_api import add_export_routes
+    add_export_routes(app, module=module)
+
     # ── Chat UI ───────────────────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def chat_ui():
@@ -224,11 +242,13 @@ def create_app(
         # NOTE: llm.is_available() deliberately excluded — it makes a synchronous
         # HTTP call to the LLM backend and exceeds the browser AbortSignal timeout,
         # causing the launcher to show the module as offline even when it is running.
+        from intelligence_core.config import settings
         return {
             "status":         "ok",
             "module":         module,
             "chunks_indexed": retriever.store.count(),
             "llm_backend":    _llm.backend_name,
+            "ingest_enabled": bool(getattr(settings, "is_ingest_enabled", False)),
         }
 
     # ── Non-streaming query ───────────────────────────────────────────────────
@@ -237,9 +257,25 @@ def create_app(
         from intelligence_core.config import settings
         t0 = time.perf_counter()
 
+        def _observe(resp: QueryResponse) -> QueryResponse:
+            """Emit one structured query event (metadata only) + update metrics."""
+            from intelligence_core.observability import log_query_event
+            log_query_event(
+                module=module,
+                project=getattr(settings, "is_project", "default"),
+                intent=resp.intent,
+                question_length=len(req.question),
+                top_k=req.top_k,
+                confidence=resp.confidence,
+                escalated=resp.escalated,
+                backend=resp.backend,
+                latency_ms=resp.latency_ms,
+            )
+            return resp
+
         # ── Intent routing (transparent to the caller) ────────────────────────
         if settings.intent_routing:
-            from intelligence_core.intent import classify_intent, IntentLevel
+            from intelligence_core.intent import IntentLevel, classify_intent
             try:
                 intent = classify_intent(req.question, registry=_get_skill_registry())
             except Exception as exc:
@@ -257,7 +293,7 @@ def create_app(
                         settings.agent_max_iterations,
                         settings.thinking_mode,
                     )
-                    return QueryResponse(
+                    return _observe(QueryResponse(
                         answer=result["answer"],
                         sources=[],
                         confidence=round(intent.confidence, 4),
@@ -265,7 +301,7 @@ def create_app(
                         backend=_llm.backend_name,
                         latency_ms=round((time.perf_counter() - t0) * 1000, 1),
                         intent="agent",
-                    )
+                    ))
                 except Exception as exc:
                     logger.warning("Agent run fallita, fallback RAG: %s", exc)
 
@@ -286,7 +322,7 @@ def create_app(
                         )
                         if "environment" in missing:
                             q_text += " (es: staging o production)"
-                        return QueryResponse(
+                        return _observe(QueryResponse(
                             answer=q_text,
                             sources=[],
                             confidence=round(intent.confidence, 4),
@@ -294,7 +330,7 @@ def create_app(
                             backend=_llm.backend_name,
                             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
                             intent="skill",
-                        )
+                        ))
 
                 # Start skill session and return first step
                 executor_obj = _get_skill_executor()
@@ -311,7 +347,7 @@ def create_app(
                                 answer += "\n\n_Fonti: " + ", ".join(
                                     s["source"] for s in first_step.sources if s.get("source")
                                 ) + "_"
-                            return QueryResponse(
+                            return _observe(QueryResponse(
                                 answer=answer,
                                 sources=first_step.sources,
                                 confidence=round(intent.confidence, 4),
@@ -321,7 +357,7 @@ def create_app(
                                 intent="skill",
                                 session_id=session_id,
                                 is_last_step=first_step.is_last_step,
-                            )
+                            ))
                         except Exception as exc:
                             logger.warning("Skill session start fallita, fallback RAG: %s", exc)
 
@@ -356,7 +392,7 @@ def create_app(
             else answer_llm.generate(req.question, context)
         )
 
-        return QueryResponse(
+        return _observe(QueryResponse(
             answer=answer,
             sources=sources,
             confidence=round(confidence, 4),
@@ -364,7 +400,7 @@ def create_app(
             backend=answer_llm.backend_name,
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
             intent="rag",
-        )
+        ))
 
     # ── Skill next-step endpoint (available on all modules) ───────────────────
     @app.post("/api/v1/skill/next")
@@ -413,10 +449,30 @@ def create_app(
     @app.post("/api/v1/stream")
     async def stream_query(req: QueryRequest):
         from intelligence_core.config import settings
+        t0 = time.perf_counter()
+
+        def _log_stream(intent: str, confidence: float, escalated: bool, backend: str) -> None:
+            """Emit one structured query event (metadata only) + update metrics.
+
+            Called once the SSE response has been fully generated so streaming
+            queries are counted in /metrics alongside non-streaming ones.
+            """
+            from intelligence_core.observability import log_query_event
+            log_query_event(
+                module=module,
+                project=getattr(settings, "is_project", "default"),
+                intent=intent,
+                question_length=len(req.question),
+                top_k=req.top_k,
+                confidence=confidence,
+                escalated=escalated,
+                backend=backend,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
 
         # ── Intent routing ────────────────────────────────────────────────────
         if settings.intent_routing:
-            from intelligence_core.intent import classify_intent, IntentLevel
+            from intelligence_core.intent import IntentLevel, classify_intent
             try:
                 intent = classify_intent(req.question, registry=_get_skill_registry())
             except Exception as exc:
@@ -443,6 +499,7 @@ def create_app(
                             yield f"data: {json.dumps({'type': 'token', 'token': word + ' '})}\n\n"
                         yield f"data: {json.dumps({'type': 'meta', 'confidence': round(intent.confidence, 4), 'backend': _llm.backend_name, 'escalated': False, 'intent': 'agent', 'tools_used': agent_tools})}\n\n"
                         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        _log_stream("agent", intent.confidence, False, _llm.backend_name)
 
                     return StreamingResponse(
                         agent_stream(),
@@ -507,6 +564,7 @@ def create_app(
                             meta["session_id"] = session_id
                         yield f"data: {json.dumps(meta)}\n\n"
                         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        _log_stream("skill", intent.confidence, False, _llm.backend_name)
 
                     return StreamingResponse(
                         skill_stream(),
@@ -547,6 +605,7 @@ def create_app(
                 msg = "No relevant documents found. Try re-indexing or rephrasing the query."
                 yield f"data: {json.dumps({'type': 'token', 'token': msg})}\n\n"
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                _log_stream("rag", confidence, escalated, answer_llm.backend_name)
                 return
 
             # 3. Stream tokens
@@ -559,6 +618,7 @@ def create_app(
             # 4. Done + meta
             yield f"data: {json.dumps({'type': 'meta', 'confidence': round(confidence, 4), 'backend': answer_llm.backend_name, 'escalated': escalated})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            _log_stream("rag", confidence, escalated, answer_llm.backend_name)
 
         return StreamingResponse(
             generate(),

@@ -1,14 +1,16 @@
 """Parse JSONL chunks, add embeddings, write back, and load into ChromaDB."""
 
 from __future__ import annotations
+
 import argparse
+import time
 from pathlib import Path
 
 from intelligence_core.chunk import chunk_from_jsonl, chunk_to_jsonl
-from intelligence_core.embedder import get_embedder
 from intelligence_core.config import settings
+from intelligence_core.embedder import get_embedder
 
-COLLECTION_NAME = "code_intelligence"
+COLLECTION_NAME = "code_intelligence"  # base name; runtime uses paths.collection_name("code")
 
 
 def _warn_zero_embeddings(chunks: list[dict]) -> None:
@@ -29,7 +31,7 @@ def embed_chunks(
     input_file: Path,
     output_file: Path = None,
     incremental: bool = False,
-    collection_name: str = COLLECTION_NAME,
+    collection_name: str = None,
 ) -> list[dict]:
     """Full pipeline step: embed chunks and load into ChromaDB.
 
@@ -41,6 +43,9 @@ def embed_chunks(
                           source files have been removed.
         collection_name:  ChromaDB collection (default: ``code_intelligence``).
     """
+    from intelligence_core import paths
+    t0 = time.perf_counter()
+    collection_name = collection_name or paths.collection_name("code")
     output_file = output_file or input_file
     embedder = get_embedder()
 
@@ -53,7 +58,7 @@ def embed_chunks(
 
     # ── ChromaDB store (needed for both modes) ───────────────────────────────
     from intelligence_core.store import ChromaStore
-    store = ChromaStore(collection_name=collection_name)
+    store = ChromaStore(collection_name=collection_name, persist_dir=str(paths.chroma_dir()))
 
     if incremental:
         # Fetch {id: checksum} for all chunks currently in ChromaDB
@@ -103,6 +108,17 @@ def embed_chunks(
         store.add(to_embed)   # upsert only new / changed chunks
     print(f"ChromaDB '{collection_name}': {store.count()} total chunks indexed")
 
+    from intelligence_core.observability import log_ingestion_event
+    log_ingestion_event(
+        module="code",
+        project=getattr(settings, "is_project", "default"),
+        total=len(chunks),
+        new=len(to_embed),
+        skipped=len(chunks) - len(to_embed),
+        duration_ms=(time.perf_counter() - t0) * 1000,
+        backend=settings.embed_backend,
+    )
+
     return chunks
 
 
@@ -127,8 +143,8 @@ def main():
             "Rimuove da ChromaDB gli ID orfani (file eliminati)."
         ),
     )
-    parser.add_argument("--collection", default=COLLECTION_NAME,
-                        help=f"ChromaDB collection name (default: {COLLECTION_NAME})")
+    parser.add_argument("--collection", default=None,
+                        help="ChromaDB collection name (default: code_intelligence, prefixed when IS_PROJECT is set)")
     args = parser.parse_args()
     embed_chunks(
         Path(args.input),

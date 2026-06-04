@@ -15,7 +15,6 @@ from pydantic import BaseModel
 
 from intelligence_core.config import settings
 from intelligence_core.store import ChromaStore
-from ProposalIntelligence import COLLECTION_NAME
 from ProposalIntelligence.answer import answer_questions
 from ProposalIntelligence.web import PROPOSAL_HTML
 
@@ -48,7 +47,22 @@ def build_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    store = ChromaStore(collection_name=COLLECTION_NAME)
+    from intelligence_core.auth import add_auth_middleware, warn_if_key_missing
+    add_auth_middleware(app)
+    warn_if_key_missing()
+
+    from intelligence_core.observability import add_metrics_endpoint
+    add_metrics_endpoint(app)
+
+    from intelligence_core.ingest_api import add_ingest_routes
+    add_ingest_routes(app, module="proposal")
+
+    from intelligence_core.export_api import add_export_routes
+    add_export_routes(app, module="proposal")
+
+    from intelligence_core import paths
+    store = ChromaStore(collection_name=paths.collection_name("qa"),
+                        persist_dir=str(paths.chroma_dir()))
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index():
@@ -63,6 +77,7 @@ def build_app() -> FastAPI:
             "chunks_indexed": store.count(),
             "llm_backend":    get_module_llm_provider("pi").backend_name,
             "default_mode":   settings.proposal_mode,
+            "ingest_enabled": bool(getattr(settings, "is_ingest_enabled", False)),
         }
 
     @app.post("/api/v1/proposal/answer", response_model=AnswerResponse)

@@ -31,11 +31,63 @@ PROPOSAL_HTML = """<!DOCTYPE html>
     <h1 class="text-lg font-bold tracking-tight" style="color:#a78bfa">ProposalIntelligence</h1>
     <p class="text-xs text-gray-500">Risposte a questionari / gare nel tuo stile aziendale</p>
   </div>
+  <button id="ingest-btn" onclick="openIngest()"
+    class="hidden text-xs px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700
+           text-gray-200 transition mr-3">
+    📥 Indicizza
+  </button>
+  <div class="relative mr-3">
+    <button id="export-btn" onclick="toggleExportMenu(event)"
+      class="hidden text-xs px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700
+             text-gray-200 transition">
+      ⬇︎ Esporta
+    </button>
+    <div id="export-menu" class="hidden absolute right-0 mt-1 w-44 bg-gray-900
+                border border-gray-800 rounded-lg shadow-lg py-1 z-40 text-xs">
+      <button onclick="downloadExport('markdown')"
+              class="block w-full text-left px-3 py-2 hover:bg-gray-800 text-gray-200">Markdown (.md)</button>
+      <button onclick="downloadExport('html')"
+              class="block w-full text-left px-3 py-2 hover:bg-gray-800 text-gray-200">HTML (.html)</button>
+      <button onclick="downloadExport('pdf')"
+              class="block w-full text-left px-3 py-2 hover:bg-gray-800 text-gray-200">PDF (.pdf)</button>
+    </div>
+  </div>
   <div class="text-right text-xs">
     <div id="status" class="text-gray-500">verifico…</div>
     <div id="meta" class="text-gray-600 font-mono mt-0.5"></div>
   </div>
 </header>
+
+<!-- ═══════════════════════ INGEST MODAL ═══════════════════════════════════ -->
+<div id="ingest-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center
+     bg-black/60 px-4">
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-base" style="color:#a78bfa">📥 Indicizza corpus Q&amp;A</h3>
+      <button onclick="closeIngest()" class="text-gray-500 hover:text-gray-300 text-lg leading-none">✕</button>
+    </div>
+    <div class="space-y-1">
+      <label class="text-xs font-semibold text-gray-400">Carica file (md, txt, csv, xlsx)</label>
+      <input id="ingest-files" type="file" multiple
+             class="w-full text-sm text-gray-300
+                    file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0
+                    file:text-xs file:font-medium file:bg-violet-900/40 file:text-violet-300
+                    hover:file:bg-violet-900/60">
+    </div>
+    <div id="ingest-status" class="hidden text-xs px-3 py-2 rounded-lg"></div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button onclick="closeIngest()"
+              class="px-4 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800 transition">
+        Annulla
+      </button>
+      <button id="ingest-run" onclick="submitIngest()"
+              class="px-4 py-2 rounded-lg text-sm font-semibold text-white
+                     bg-violet-700 hover:bg-violet-600 disabled:opacity-40 transition">
+        Indicizza
+      </button>
+    </div>
+  </div>
+</div>
 
 <main class="flex-1 w-full max-w-5xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-5 gap-6">
 
@@ -94,6 +146,7 @@ PROPOSAL_HTML = """<!DOCTYPE html>
 
 <script>
 const API = location.origin;
+let _lastData = null;   // last answer payload, for export
 
 async function health() {
   try {
@@ -105,9 +158,136 @@ async function health() {
       (d.chunks_indexed || 0) + ' coppie · ' + (d.llm_backend || '—');
     const sel = document.getElementById('mode');
     if (d.default_mode) sel.value = d.default_mode;
+    document.getElementById('ingest-btn').classList.toggle('hidden', !d.ingest_enabled);
   } catch {
     document.getElementById('status').textContent = '○ offline';
     document.getElementById('status').className = 'text-gray-500';
+  }
+}
+
+// ── Ingest (opt-in — IS_INGEST_ENABLED) ──────────────────────────────────────
+function openIngest() {
+  const st = document.getElementById('ingest-status');
+  st.classList.add('hidden'); st.textContent = '';
+  document.getElementById('ingest-run').disabled = false;
+  document.getElementById('ingest-modal').classList.remove('hidden');
+}
+
+function closeIngest() {
+  document.getElementById('ingest-modal').classList.add('hidden');
+}
+
+function _ingestStatus(text, kind) {
+  const st = document.getElementById('ingest-status');
+  st.classList.remove('hidden');
+  const styles = {
+    info: 'bg-gray-800 text-gray-300',
+    ok:   'bg-green-900/40 text-green-300',
+    err:  'bg-red-900/40 text-red-300',
+  };
+  st.className = 'text-xs px-3 py-2 rounded-lg ' + (styles[kind] || styles.info);
+  st.textContent = text;
+}
+
+async function submitIngest() {
+  const runBtn = document.getElementById('ingest-run');
+  const input = document.getElementById('ingest-files');
+  if (!input.files.length) { _ingestStatus('Seleziona almeno un file.', 'err'); return; }
+  runBtn.disabled = true;
+  try {
+    const fd = new FormData();
+    for (const f of input.files) fd.append('files', f);
+    _ingestStatus('Caricamento file…', 'info');
+    const resp = await fetch(API + '/api/v1/ingest/upload', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      let detail = 'errore ' + resp.status;
+      try { const e = await resp.json(); if (e.detail) detail = e.detail; } catch {}
+      _ingestStatus('⚠️ ' + detail, 'err');
+      runBtn.disabled = false;
+      return;
+    }
+    const body = await resp.json();
+    _ingestStatus('In coda (job ' + body.job_id + ')…', 'info');
+    pollIngest(body.job_id);
+  } catch (err) {
+    _ingestStatus('⚠️ ' + err.message, 'err');
+    runBtn.disabled = false;
+  }
+}
+
+async function pollIngest(jobId) {
+  const runBtn = document.getElementById('ingest-run');
+  try {
+    const d = await (await fetch(API + '/api/v1/ingest/status/' + jobId)).json();
+    if (d.status === 'done') {
+      const s = d.stats || {};
+      _ingestStatus('✓ Completato · ' + (s.new || 0) + ' nuovi · ' + (s.skipped || 0)
+                    + ' invariati · ' + (s.deleted || 0) + ' rimossi', 'ok');
+      runBtn.disabled = false;
+      health();
+      return;
+    }
+    if (d.status === 'error') {
+      _ingestStatus('⚠️ ' + (d.error || 'ingest fallito'), 'err');
+      runBtn.disabled = false;
+      return;
+    }
+    _ingestStatus('Indicizzazione in corso…', 'info');
+    setTimeout(() => pollIngest(jobId), 1000);
+  } catch (err) {
+    _ingestStatus('⚠️ ' + err.message, 'err');
+    runBtn.disabled = false;
+  }
+}
+
+// ── Export (download answers as Markdown / HTML / PDF) ────────────────────────
+function toggleExportMenu(evt) {
+  if (evt) evt.stopPropagation();
+  document.getElementById('export-menu').classList.toggle('hidden');
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('export-menu');
+  const btn  = document.getElementById('export-btn');
+  if (menu && !menu.classList.contains('hidden') &&
+      !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.add('hidden');
+  }
+});
+
+async function downloadExport(fmt) {
+  document.getElementById('export-menu').classList.add('hidden');
+  if (!_lastData || !_lastData.answers || !_lastData.answers.length) {
+    alert('Nessuna risposta da esportare.');
+    return;
+  }
+  const sections = _lastData.answers.map(a => ({
+    heading: a.question, body: a.answer, sources: a.sources || [],
+  }));
+  try {
+    const resp = await fetch(API + '/api/v1/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: fmt, title: 'Risposte ProposalIntelligence', sections }),
+    });
+    if (!resp.ok) {
+      let detail = 'errore ' + resp.status;
+      try { const e = await resp.json(); if (e.detail) detail = e.detail; } catch {}
+      alert('Export non riuscito: ' + detail);
+      return;
+    }
+    const blob = await resp.blob();
+    let filename = 'risposte';
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^"]+)"?/);
+    if (m) filename = m[1];
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Export non riuscito: ' + err.message);
   }
 }
 
@@ -122,6 +302,8 @@ function render(data) {
     box.innerHTML = '<div class="text-gray-500 text-sm p-6">Nessuna risposta.</div>';
     return;
   }
+  _lastData = data;
+  document.getElementById('export-btn').classList.remove('hidden');
   const head = document.createElement('div');
   head.className = 'text-xs text-gray-500';
   head.textContent = 'Modalità: ' + data.mode + ' · backend: ' + data.backend
