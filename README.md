@@ -23,6 +23,7 @@ embedded for storage.
 
 - [Overview](#overview) — how it works (with diagrams)
 - [Quick start](#quick-start) — install, index, serve, query
+- [OpenAI-compatible gateway](#openai-compatible-gateway-openwebui--friends) — OpenWebUI, LibreChat, `openai` SDK
 - [Installation & extras](#installation--extras)
 - [Modules](#modules) — Code · Doc · Mentor · Skill · Agent · Proposal
 - **Capabilities**
@@ -264,6 +265,67 @@ curl -X POST http://localhost:8080/api/v1/query \
 ```
 
 > **No cloud, no API key, no GPU required** for the default setup.
+
+---
+
+## OpenAI-compatible gateway (OpenWebUI & friends)
+
+The **gateway** puts a standard OpenAI Chat Completions API in front of the
+module servers, so any OpenAI-speaking client — [OpenWebUI](https://openwebui.com),
+LibreChat, the `openai` SDK, IDE plugins, `curl` — can use IntelligenceSuite with
+**no bespoke integration**. It is a thin protocol adapter: it translates
+OpenAI ↔ IntelligenceSuite and proxies over HTTP, forwarding your `Authorization`
+header upstream. All retrieval, intent routing, skills, agents and escalation
+still happen inside each module server — the gateway holds no retrieval logic.
+
+```bash
+gw-serve                              # or: python -m intelligence_gateway.gateway_server
+# → http://localhost:8086  (GW_PORT, default 8086)
+```
+
+The module servers it fronts must already be running — start them via the
+[Launcher](#option-a--launcher-recommended) or individually.
+
+### Models
+
+`GET /v1/models` returns five selectable models:
+
+| Model `id` | Routes to |
+|---|---|
+| `code-intelligence` | CodeIntelligence (8080) |
+| `doc-intelligence` | DocIntelligence (8081) |
+| `mentor-intelligence` | MentorIntelligence (8082) |
+| `proposal-intelligence` | ProposalIntelligence (8085) |
+| `intelligence-suite` | **auto** — a keyword heuristic picks the best module per question |
+
+The module that actually answered is returned in the `X-IS-Module` response
+header (handy with the `auto` model). Responses stream token-by-token (SSE) when
+the client sets `stream: true` — ProposalIntelligence included.
+
+```bash
+curl http://localhost:8086/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "intelligence-suite",
+       "messages": [{"role": "user", "content": "Where is authentication handled?"}]}'
+```
+
+### Configure OpenWebUI
+
+> **The one gotcha:** add the gateway as an **OpenAI API Connection**, *not* as a
+> Tool Server. OpenWebUI's "Tools" expect an OpenAPI spec (`/openapi.json`); the
+> gateway is a *model provider*, so adding it under Tools returns 404 / "verify
+> failed".
+
+1. OpenWebUI → **Settings → Connections → OpenAI API → Add connection**.
+2. **Base URL:** `http://localhost:8086/v1`  (include `/v1`, no trailing slash).
+3. **API key:** any non-empty string (e.g. `sk-local`) — unless you enabled
+   [authentication](#authentication) on the modules, in which case use that token
+   (the gateway forwards it upstream).
+4. **Verify** → the five models appear in the model dropdown.
+5. Pick a model (or `intelligence-suite` for auto-routing) and chat.
+
+> Run OpenWebUI in its **own** Python environment — it pins many dependencies and
+> will downgrade IntelligenceSuite's if installed in the same venv.
 
 ---
 
@@ -804,6 +866,7 @@ IntelligenceSuite/
 ├── SkillIntelligence/       # Procedural guidance (skills/)
 ├── AgentIntelligence/       # ReAct agent
 ├── ProposalIntelligence/    # Questionnaire/RFP auto-answer + web UI
+├── intelligence_gateway/    # OpenAI-compatible adapter (gw-serve, port 8086)
 ├── intelligence_eval/       # Eval runner (is-eval)
 ├── intelligence_ui/         # Launcher dashboard (port 8079)
 ├── skill_docs/              # Bundled Markdown skill templates

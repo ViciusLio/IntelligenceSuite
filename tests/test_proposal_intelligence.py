@@ -221,6 +221,45 @@ def test_render_markdown_structure():
     assert "Fonti di stile: c.md (0.8)" in md
 
 
+# ── streaming bridge (single-question /api/v1/stream) ─────────────────────────
+import asyncio
+
+from ProposalIntelligence.proposal_server import _stream_styled_tokens
+
+
+class _StreamingLLM:
+    """Provider with a styled sync stream(), like Ollama/openai_compat."""
+    def stream(self, question, context, *, system_prompt=None, temperature=0.1):
+        self.seen = {"sys": system_prompt, "temp": temperature}
+        for tok in ("Ciao", " ", "mondo"):
+            yield tok
+
+
+class _NoStreamLLM:
+    """Provider without stream() — must fall back to generate() (like Claude)."""
+    def generate(self, question, context, *, system_prompt=None, temperature=0.1):
+        return "intera risposta"
+
+
+def _collect(async_gen):
+    async def _run():
+        return [t async for t in async_gen]
+    return asyncio.run(_run())
+
+
+def test_stream_styled_tokens_streams_and_forwards_style():
+    llm = _StreamingLLM()
+    toks = _collect(_stream_styled_tokens(llm, "q", "ctx", "PROMPT", 0.4))
+    assert "".join(toks) == "Ciao mondo"
+    # the proposal style (system prompt + temperature) reached the provider
+    assert llm.seen == {"sys": "PROMPT", "temp": 0.4}
+
+
+def test_stream_styled_tokens_falls_back_to_generate():
+    toks = _collect(_stream_styled_tokens(_NoStreamLLM(), "q", "ctx", "PROMPT", 0.1))
+    assert "".join(toks) == "intera risposta"
+
+
 # ── per-module embedder override ─────────────────────────────────────────────
 def test_get_module_embedder_reads_pi_override(monkeypatch):
     from intelligence_core.config import settings

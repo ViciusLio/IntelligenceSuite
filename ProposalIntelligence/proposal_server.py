@@ -7,15 +7,24 @@ Endpoint:
 
 from __future__ import annotations
 
+import asyncio
+import json
+import threading
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from intelligence_core.config import settings
 from intelligence_core.store import ChromaStore
 from ProposalIntelligence.answer import answer_questions
+from ProposalIntelligence.prompts import (
+    build_fewshot_context,
+    system_prompt_for,
+    temperature_for,
+)
 from ProposalIntelligence.web import PROPOSAL_HTML
 
 
@@ -23,6 +32,55 @@ class AnswerRequest(BaseModel):
     questions: list[str]
     mode:  str | None = None     # "anchored" | "commercial"
     top_k: int | None = None
+
+
+class QueryRequest(BaseModel):
+    """Single-question contract, mirroring the other modules' /api/v1/query.
+
+    Extra OpenAI-gateway fields (history/min_score/domain) are ignored — only
+    the question, an optional top_k and an optional style mode are used.
+    """
+    question: str
+    top_k: int | None = None
+    mode:  str | None = None     # "anchored" | "commercial"
+
+
+async def _stream_styled_tokens(llm, question: str, context: str,
+                                system_prompt: str, temperature: float):
+    """Bridge a sync styled LLM ``stream()`` into an async token generator.
+
+    Mirrors ``server_base._async_stream`` but forwards the proposal style
+    (system prompt + temperature). Falls back to ``generate()`` for providers
+    without a ``stream()`` method (e.g. Claude).
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    def _producer():
+        try:
+            stream_fn = getattr(llm, "stream", None)
+            if stream_fn:
+                for token in stream_fn(question, context,
+                                       system_prompt=system_prompt,
+                                       temperature=temperature):
+                    loop.call_soon_threadsafe(queue.put_nowait, token)
+            else:
+                text = llm.generate(question, context,
+                                    system_prompt=system_prompt,
+                                    temperature=temperature)
+                loop.call_soon_threadsafe(queue.put_nowait, text)
+        except Exception as exc:  # noqa: BLE001 — surfaced inline to the client
+            loop.call_soon_threadsafe(queue.put_nowait, f"\n\n[Error: {exc}]")
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    threading.Thread(target=_producer, daemon=True).start()
+
+    while True:
+        token = await queue.get()
+        if token is None:
+            break
+        yield token
 
 
 class AnswerItem(BaseModel):
@@ -64,6 +122,12 @@ def build_app() -> FastAPI:
     store = ChromaStore(collection_name=paths.collection_name("qa"),
                         persist_dir=str(paths.chroma_dir()))
 
+    # Shared retriever for the single-question endpoints (query/stream). Built
+    # once and reused; same store/embedder the batch answerer uses.
+    from intelligence_core.embedder import get_module_embedder
+    from intelligence_core.retriever import Retriever
+    retriever = Retriever(embedder=get_module_embedder("pi"), store=store)
+
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index():
         return HTMLResponse(content=PROPOSAL_HTML)
@@ -104,6 +168,61 @@ def build_app() -> FastAPI:
                 AnswerItem(question=a.question, answer=a.answer, sources=a.sources)
                 for a in answered
             ],
+        )
+
+    # ── Single-question RAG (parity with the other modules) ───────────────────
+    # The OpenAI gateway speaks one-question-at-a-time; these endpoints let
+    # ProposalIntelligence be driven like code/doc/mentor (chat + streaming),
+    # while /api/v1/proposal/answer stays for the questionnaire batch workflow.
+
+    @app.post("/api/v1/query")
+    def query(req: QueryRequest):
+        from intelligence_core.llm import get_module_llm_provider
+        mode = req.mode or settings.proposal_mode
+        llm = get_module_llm_provider("pi")
+        answered = answer_questions(
+            [req.question], mode=mode, top_k=req.top_k,
+            retriever=retriever, llm=llm,
+        )[0]
+        return {
+            "answer":  answered.answer,
+            "sources": answered.sources,
+            "backend": llm.backend_name,
+            "mode":    mode,
+        }
+
+    @app.post("/api/v1/stream")
+    async def stream(req: QueryRequest):
+        from intelligence_core.llm import get_module_llm_provider
+        mode = req.mode or settings.proposal_mode
+        top_k = req.top_k or settings.proposal_top_k
+        llm = get_module_llm_provider("pi")
+
+        hits = retriever.search(req.question, top_k=top_k, domain=None)
+        context = build_fewshot_context(hits)
+        sources = [
+            {
+                "source": (getattr(h, "chunk", h) or {}).get("source", ""),
+                "score": round(getattr(h, "score", 0.0), 4),
+            }
+            for h in hits
+        ]
+        sys_prompt = system_prompt_for(mode)
+        temperature = temperature_for(mode)
+
+        async def event_stream():
+            yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+            async for token in _stream_styled_tokens(
+                llm, req.question, context, sys_prompt, temperature
+            ):
+                yield f"data: {json.dumps({'type': 'token', 'token': token}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'meta', 'backend': llm.backend_name, 'mode': mode}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
     return app

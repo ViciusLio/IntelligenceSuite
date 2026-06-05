@@ -10,6 +10,39 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.14.0] — 2026-06-05
+
+### Added
+- **OpenAI-compatible gateway** (`intelligence_gateway/`, `gw-serve`, port 8086) —
+  a thin protocol adapter exposing a standard OpenAI API (`GET /v1/models`,
+  `POST /v1/chat/completions`, streaming + non-streaming) in front of the module
+  servers, so any OpenAI-speaking client (OpenWebUI, LibreChat, the `openai` SDK,
+  IDE plugins, `curl`) can use IntelligenceSuite with no bespoke integration. It
+  holds no retrieval logic — it translates OpenAI ↔ IntelligenceSuite and proxies
+  over HTTP, forwarding the caller's `Authorization` header upstream. Exposes five
+  models — `code-/doc-/mentor-/proposal-intelligence` plus an `intelligence-suite`
+  auto-router (keyword heuristic) — and returns the answering module in the
+  `X-IS-Module` response header. New settings `GW_PORT` (default 8086) and
+  `GW_UPSTREAM_HOST` (default `localhost`, set to a service name under
+  docker-compose). README gains an *OpenAI-compatible gateway* section with the
+  OpenWebUI configuration guide.
+- **ProposalIntelligence now speaks the standard single-question contract** —
+  `POST /api/v1/query` and `POST /api/v1/stream` (SSE), the same surface the other
+  modules expose via `server_base`. Both reuse Proposal's own few-shot style
+  pipeline (mode-specific system prompt + temperature, Q&A example retrieval), so
+  answers are identical to the batch path — only the delivery changes. The stream
+  endpoint emits real `token` events as the LLM generates (first token in ~0.8s
+  instead of waiting for the whole answer), bridged from the provider's sync
+  `stream()` via a background thread, with a `generate()` fallback for providers
+  without streaming (e.g. Claude). This lets the gateway drive **all five** models
+  through one uniform path — no per-module branching — so selecting
+  `proposal-intelligence` in OpenWebUI streams token-by-token like the others
+  instead of returning 404. The existing `POST /api/v1/proposal/answer` batch
+  endpoint is unchanged and stays for the questionnaire workflow.
+  (`ProposalIntelligence/proposal_server.py`)
+
+---
+
 ## [0.13.1] — 2026-06-04
 
 ### Fixed

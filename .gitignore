@@ -59,3 +59,7 @@ risposte*.md
 .ruff_cache/
 htmlcov/
 .coverage
+
+# OpenWebUI runtime artifacts (when run alongside the gateway)
+.webui_secret_key
+webui.db

@@ -169,7 +169,14 @@ class Settings(BaseSettings):
     si_port:       int = 8083   # SkillIntelligence
     agent_port:    int = 8084   # AgentIntelligence
     pi_port:       int = 8085   # ProposalIntelligence
+    gw_port:       int = 8086   # OpenAI-compatible Gateway (for OpenWebUI & co.)
     launcher_port: int = 8079   # Launcher dashboard
+
+    # ── Gateway (OpenAI-compatible adapter) ───────────────────────────────────
+    # Host the gateway uses to reach the module servers. "localhost" for a
+    # single-host run; in docker-compose set GW_UPSTREAM_HOST to a service name
+    # (or per-service via the module ports), e.g. GW_UPSTREAM_HOST=is-core.
+    gw_upstream_host: str = "localhost"
 
     # ── Shared server settings ─────────────────────────────────────────────────
     api_host:  str = "0.0.0.0"
