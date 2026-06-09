@@ -329,6 +329,52 @@ curl http://localhost:8086/v1/chat/completions \
 
 ---
 
+## Use as an MCP server (Claude Code, Cursor, Claude Desktop)
+
+The suite ships a [Model Context Protocol](https://modelcontextprotocol.io)
+server (`is-mcp`) that exposes the knowledge bases as **tools** to any
+MCP-compatible client. Unlike the gateway, the LLM lives in the *client* — the
+server performs **retrieval only**, so it holds no model keys and never dumps
+configuration. It needs no LangChain/LLM dependencies, only the lightweight
+`mcp` package.
+
+```bash
+pip install "intelligence-suite[mcp]"
+```
+
+It exposes the same tools the [ReAct agent](#agentintelligence--multi-hop-react-agent) uses:
+
+| Tool | Backed by | Input |
+|---|---|---|
+| `search_code` | CodeIntelligence | `query`, `top_k` |
+| `search_docs` | DocIntelligence | `query`, `top_k` |
+| `search_practices` | MentorIntelligence | `query`, `top_k` |
+| `analyze_impact` | Dependency graph (`[graph]`) | `function_name`, `depth` |
+
+Add it to your client's MCP config (Claude Code `.mcp.json`, Cursor, or Claude
+Desktop's `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "intelligence-suite": {
+      "command": "is-mcp",
+      "env": { "IS_PROJECT": "acme" }
+    }
+  }
+}
+```
+
+- **Tenancy:** set `IS_PROJECT` to scope the server to one project's collections
+  (see [Multi-project](#multi-project)); omit it for the `default` layout.
+- **Transport:** stdio (local). The server logs to stderr — stdout is the
+  JSON-RPC channel.
+- The tools degrade gracefully: if a collection hasn't been indexed yet they
+  return an explanatory note instead of failing, so index the relevant module
+  first (`ci-embed`, `di-embed`, …).
+
+---
+
 ## Installation & extras
 
 ```bash
@@ -349,6 +395,7 @@ pip install -e ".[dev]"                 # development
 | `[eval]` | RAGAS evaluation pipeline (`ci-eval`) |
 | `[st]` | SentenceTransformer embeddings (CPU-only, offline) |
 | `[openai]` / `[claude]` | OpenAI/vLLM/Groq/Mistral · Claude+Voyage backends |
+| `[mcp]` | [MCP server](#use-as-an-mcp-server-claude-code-cursor-claude-desktop) (`is-mcp`) — expose tools to Claude Code/Cursor/Claude Desktop |
 
 ---
 

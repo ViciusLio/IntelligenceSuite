@@ -8,6 +8,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **MCP server** (`intelligence_mcp/`, `is-mcp`) — a [Model Context Protocol](https://modelcontextprotocol.io)
+  stdio server that exposes the knowledge bases as tools (`search_code`,
+  `search_docs`, `search_practices`, `analyze_impact`) to any MCP-compatible
+  client (Claude Code, Cursor, Claude Desktop). It is a thin adapter that reuses
+  `AgentIntelligence.tools` (same schemas + executor as the in-process ReAct
+  agent), so there is a single source of truth. The LLM lives in the *client* —
+  the server performs retrieval only, holds no model keys, never dumps settings,
+  and honours `IS_PROJECT` for per-project data isolation. Read-only and
+  gracefully degrading (missing collection → explanatory note, never an error).
+- New optional dependency `[mcp]` (`pip install intelligence-suite[mcp]`) — just
+  the `mcp` package; **no LangChain/LLM deps**, so no conflict with the `[eval]`
+  langchain pin. The core stays import-safe without it.
+- `tests/test_mcp_server.py` — 18 tests covering schema translation, result
+  formatting, handler wiring and the stdio entry point (100% coverage of
+  `intelligence_mcp`).
+
+### Changed
+- `pyproject.toml`: added the `[mcp]` optional dependency, the `is-mcp` console
+  script, and `intelligence_mcp*` to the package discovery list.
+
 ---
 
 ## [0.14.0] — 2026-06-05

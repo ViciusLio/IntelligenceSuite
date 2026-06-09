@@ -65,6 +65,10 @@ eval     = [
 ]
 graph    = ["networkx>=3.0"]
 multilang = ["tree-sitter>=0.23", "tree-sitter-language-pack>=0.7"]
+# Model Context Protocol server: exposes the knowledge bases as tools to any
+# MCP-compatible client (Claude Code, Cursor, Claude Desktop). Pure retrieval —
+# no LangChain/LLM deps, so no conflict with the [eval] langchain pin.
+mcp    = ["mcp>=1.2"]
 all    = ["intelligence-suite[pdf,ocr,docx,xlsx,ingest,export,st,openai,claude,ui,graph]"]
 
 [project.scripts]
@@ -84,6 +88,7 @@ pi-embed   = "ProposalIntelligence.embed_qa:main"
 pi-answer  = "ProposalIntelligence.answer:main"
 pi-serve   = "ProposalIntelligence.proposal_server:main"
 gw-serve   = "intelligence_gateway.gateway_server:main"
+is-mcp     = "intelligence_mcp.server:main"
 is-launch  = "intelligence_ui.launcher:main"
 is-eval    = "intelligence_eval.eval_runner:main"
 ci-eval    = "intelligence_core.eval_cli:main"
@@ -97,7 +102,7 @@ Author     = "https://www.linkedin.com/in/vincenzo-lio-dataengineer/"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["intelligence_core*", "CodeIntelligence*", "DocIntelligence*", "MentorIntelligence*", "SkillIntelligence*", "AgentIntelligence*", "ProposalIntelligence*", "intelligence_gateway*", "intelligence_ui*", "intelligence_eval*"]
+include = ["intelligence_core*", "CodeIntelligence*", "DocIntelligence*", "MentorIntelligence*", "SkillIntelligence*", "AgentIntelligence*", "ProposalIntelligence*", "intelligence_gateway*", "intelligence_ui*", "intelligence_eval*", "intelligence_mcp*"]
 
 [tool.setuptools.package-data]
 "MentorIntelligence.content" = ["*.json"]

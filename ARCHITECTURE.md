@@ -147,6 +147,40 @@ mentor_server.py          ← endpoint HTTP: /onboard /ask /progress /reset
         └── store locale domain=mentor  (prassi, guide, percorsi)
 ```
 
+## MCP server (`intelligence_mcp`, `is-mcp`)
+
+Superficie di accesso per i **coding assistant** (Claude Code, Cursor, Claude
+Desktop) via [Model Context Protocol](https://modelcontextprotocol.io). È un
+**adapter sottile**, non un nuovo motore: riusa verbatim catalogo ed esecutore
+dei tool di `AgentIntelligence.tools`, così esiste un'unica fonte di verità.
+
+```
+MCP list_tools()  ←  TOOLS         (schema OpenAI function → inputSchema MCP)
+MCP call_tool()   ←  execute_tool  (ritorna dict, non solleva mai)
+                         └──→ intelligence_core.retriever.Retriever (lazy, cached)
+```
+
+Scelte di design:
+
+- **L'LLM sta nel client.** Il server fa *solo retrieval*: non detiene chiavi di
+  modello e non espone mai `settings` → coerente con la roadmap di
+  data-segregation.
+- **Zero dipendenze pesanti.** Richiede solo il pacchetto `mcp`
+  (`[project.optional-dependencies].mcp`); nessun LangChain/LangGraph, quindi
+  nessun conflitto con il pin `langchain<0.4` dell'extra `[eval]`. Il core resta
+  invariato e importabile senza l'extra (`import intelligence_mcp` è lazy).
+- **Transport stdio.** Il canale JSON-RPC *è* stdout, quindi il logging è forzato
+  su stderr e la telemetria di ChromaDB è silenziata (`ANONYMIZED_TELEMETRY`).
+- **Multi-tenancy gratuita.** La collection è risolta a runtime da
+  `intelligence_core.paths` in base a `IS_PROJECT`, impostabile nell'env della
+  config MCP del client → isolamento per progetto.
+- **Degradazione graziosa.** Collection non indicizzata → `note` esplicativa, mai
+  eccezione (ereditato da `execute_tool`).
+
+Tool esposti: `search_code`, `search_docs`, `search_practices`, `analyze_impact`
+— gli stessi del ReAct agent in-process, di cui l'MCP è la controparte aperta e
+client-agnostica.
+
 ## KPI production-ready
 
 | Metrica              | CodeIntelligence | DocIntelligence | MentorIntelligence      |
